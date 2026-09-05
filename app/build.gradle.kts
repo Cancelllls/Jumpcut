@@ -20,9 +20,27 @@ android {
         }
     }
 
+    val releaseKeystoreFile = rootProject.file("app/keystore/jumpcut-release.jks")
+
+    signingConfigs {
+        create("release") {
+            if (releaseKeystoreFile.exists()) {
+                storeFile = releaseKeystoreFile
+                storePassword = System.getenv("STORE_PASSWORD") ?: "JumpCut2026Release!"
+                keyAlias = System.getenv("KEY_ALIAS") ?: "jumpcut"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: "JumpCut2026Release!"
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = if (releaseKeystoreFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
