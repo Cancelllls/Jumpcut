@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Scissors / Waveform JumpCut Icon -->
+    <path
+        android:fillColor="#06B6D4"
+        android:pathData="M38,34 L54,54 L70,34 L74,38 L54,62 L34,38 Z" />
+    <path
+        android:fillColor="#8B5CF6"
+        android:pathData="M38,74 L54,54 L70,74 L66,78 L54,64 L42,78 Z" />
+    <!-- Audio Waveform Bars in center -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M30,46h4v16h-4z M46,40h4v28h-4z M58,42h4v24h-4z M74,48h4v12h-4z" />
+</vector>

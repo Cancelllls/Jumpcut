@@ -1,0 +1,364 @@
+package com.cancellls.jumpcut.ui
+
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.cancellls.jumpcut.model.CutSettings
+import com.cancellls.jumpcut.theme.*
+
+@Composable
+fun HomeScreen(
+    onMediaSelected: (Uri) -> Unit,
+    onApplyPreset: (CutSettings) -> Unit,
+    onOpenPro: () -> Unit,
+    isProUser: Boolean
+) {
+    val singleMediaPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        uri?.let { onMediaSelected(it) }
+    }
+
+    val anyFilePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { onMediaSelected(it) }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BgDark)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Top Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            Brush.linearGradient(listOf(PrimaryCyan, NeonViolet))
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ContentCut,
+                        contentDescription = "Logo",
+                        tint = TextPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "JumpCut AI",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "Silence Cutter & Enhancer",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+                }
+            }
+
+            // Pro Badge / Button
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(if (isProUser) GoldPro else CardDark)
+                    .border(
+                        1.dp,
+                        if (isProUser) GoldPro else CardBorder,
+                        CircleShape
+                    )
+                    .clickable { onOpenPro() }
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Pro",
+                        tint = if (isProUser) BgDark else GoldPro,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isProUser) "PRO ACTIVE" else "GO PRO",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isProUser) BgDark else GoldPro
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Hero Title
+        Text(
+            text = "Make Your Videos\nSnappy & Engaging",
+            fontSize = 30.sp,
+            lineHeight = 36.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = TextPrimary,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(
+            text = "Automatically detect and cut awkward pauses, breathing, and dead air in seconds.",
+            fontSize = 14.sp,
+            color = TextSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+
+        Spacer(modifier = Modifier.height(28.dp))
+
+        // Big Main Pick Video Card
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(210.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(SurfaceDark)
+                .border(2.dp, Brush.linearGradient(listOf(PrimaryCyan, NeonViolet)), RoundedCornerShape(24.dp))
+                .clickable {
+                    singleMediaPicker.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                    )
+                }
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(CardDark),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VideoCall,
+                        contentDescription = "Pick Video",
+                        tint = PrimaryCyan,
+                        modifier = Modifier.size(34.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = "Select Video to Cut",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Supports MP4, MOV, 4K, 60FPS",
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Secondary Button: Pick Audio File (e.g. Podcasts, Voice Notes)
+        OutlinedButton(
+            onClick = { anyFilePicker.launch("audio/*") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = CardDark,
+                contentColor = TextPrimary
+            ),
+            border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder)))
+        ) {
+            Icon(Icons.Default.Mic, contentDescription = "Audio", tint = SpeechCyan)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Select Audio or Voice Memo (MP3, M4A, WAV)")
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Quick Presets Section
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Preset Styles",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Pre-calibrated silence sensitivity",
+                fontSize = 12.sp,
+                color = TextMuted
+            )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            PresetCard(
+                title = "Shorts / TikTok",
+                subtitle = "Snappy & fast (-30dB)",
+                icon = Icons.Default.FlashOn,
+                accentColor = PrimaryCyan,
+                modifier = Modifier.weight(1f)
+            ) {
+                onApplyPreset(CutSettings(silenceThresholdDb = -30f, minSilenceDurationMs = 250L, paddingMs = 40L))
+            }
+
+            PresetCard(
+                title = "Podcast",
+                subtitle = "Natural flow (-34dB)",
+                icon = Icons.Default.Podcasts,
+                accentColor = NeonViolet,
+                modifier = Modifier.weight(1f)
+            ) {
+                onApplyPreset(CutSettings(silenceThresholdDb = -34f, minSilenceDurationMs = 450L, paddingMs = 70L))
+            }
+
+            PresetCard(
+                title = "Lecture",
+                subtitle = "Aggressive (-28dB)",
+                icon = Icons.Default.Speed,
+                accentColor = GreenSuccess,
+                modifier = Modifier.weight(1f)
+            ) {
+                onApplyPreset(CutSettings(silenceThresholdDb = -28f, minSilenceDurationMs = 200L, paddingMs = 30L))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Feature Highlights
+        FeatureItem(
+            icon = Icons.Default.Bolt,
+            title = "Instant Lossless Splice",
+            description = "10-minute 4K videos cut in under 5 seconds with zero re-encoding loss."
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        FeatureItem(
+            icon = Icons.Default.Security,
+            title = "100% On-Device & Private",
+            description = "Zero cloud uploads. Your videos never leave your phone hardware."
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        FeatureItem(
+            icon = Icons.Default.VolumeOff,
+            title = "Speech Padding Armor",
+            description = "Natural sentence endings and word consonants are never cut off."
+        )
+    }
+}
+
+@Composable
+fun PresetCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    accentColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(SurfaceDark)
+            .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(12.dp)
+    ) {
+        Column {
+            Icon(imageVector = icon, contentDescription = title, tint = accentColor, modifier = Modifier.size(22.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Text(text = subtitle, fontSize = 10.sp, color = TextSecondary)
+        }
+    }
+}
+
+@Composable
+fun FeatureItem(
+    icon: ImageVector,
+    title: String,
+    description: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceDark)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(CardDark),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(imageVector = icon, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(20.dp))
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Text(text = description, fontSize = 12.sp, color = TextSecondary)
+        }
+    }
+}
