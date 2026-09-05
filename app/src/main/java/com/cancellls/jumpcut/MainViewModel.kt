@@ -162,18 +162,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         var name = "Selected Media"
         var size = 0L
 
-        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-                if (nameIndex != -1) name = cursor.getString(nameIndex) ?: name
-                if (sizeIndex != -1) size = cursor.getLong(sizeIndex)
+        if (uri.scheme == "file") {
+            val file = File(uri.path ?: "")
+            if (file.exists()) {
+                name = file.name
+                size = file.length()
+            }
+        } else {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (nameIndex != -1) name = cursor.getString(nameIndex) ?: name
+                    if (sizeIndex != -1) size = cursor.getLong(sizeIndex)
+                }
             }
         }
 
         val retriever = MediaMetadataRetriever()
         try {
-            retriever.setDataSource(context, uri)
+            if (uri.scheme == "file") {
+                retriever.setDataSource(uri.path)
+            } else {
+                retriever.setDataSource(context, uri)
+            }
             val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
             val durationMs = durationStr?.toLongOrNull() ?: 0L
             val hasVideo = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO) != null

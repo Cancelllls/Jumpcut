@@ -36,7 +36,11 @@ object AudioExtractor {
         var codec: MediaCodec? = null
 
         try {
-            extractor.setDataSource(context, mediaUri, null)
+            if (mediaUri.scheme == "file") {
+                extractor.setDataSource(mediaUri.path ?: "")
+            } else {
+                extractor.setDataSource(context, mediaUri, null)
+            }
             var audioTrackIndex = -1
             var audioFormat: MediaFormat? = null
 
