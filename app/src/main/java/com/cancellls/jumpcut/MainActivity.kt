@@ -1,5 +1,6 @@
 package com.cancellls.jumpcut
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -25,6 +26,7 @@ import com.cancellls.jumpcut.theme.TextSecondary
 import com.cancellls.jumpcut.ui.EditorScreen
 import com.cancellls.jumpcut.ui.ExportScreen
 import com.cancellls.jumpcut.ui.HomeScreen
+import com.cancellls.jumpcut.ui.OnboardingScreen
 import com.cancellls.jumpcut.ui.ProPaywallSheet
 
 class MainActivity : ComponentActivity() {
@@ -52,6 +54,10 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             JumpCutTheme {
+                val prefs = remember { getSharedPreferences("jumpcut_prefs", Context.MODE_PRIVATE) }
+                var hasSeenIntro by remember { mutableStateOf(prefs.getBoolean("has_seen_intro", false)) }
+                var showIntroModal by remember { mutableStateOf(false) }
+
                 val selectedMedia by viewModel.selectedMedia.collectAsState()
                 val processingState by viewModel.processingState.collectAsState()
                 val cutSettings by viewModel.cutSettings.collectAsState()
@@ -79,20 +85,30 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
                     color = BgDark
                 ) {
-                    when (val state = processingState) {
-                        is ProcessingState.Idle -> {
-                            HomeScreen(
-                                savedProjects = savedProjects,
-                                cacheSize = cacheSize,
-                                onMediaSelected = { uri -> viewModel.selectMedia(uri) },
-                                onDownloadUrl = { url -> viewModel.downloadFromUrl(url) },
-                                onApplyPreset = { preset -> viewModel.updateSettings(preset) },
-                                onDeleteProject = { id -> viewModel.deleteProject(id) },
-                                onClearCache = { viewModel.clearCache() },
-                                onOpenPro = { showProPaywall = true },
-                                isProUser = isProUser
-                            )
-                        }
+                    if (!hasSeenIntro || showIntroModal) {
+                        OnboardingScreen(
+                            onFinishOnboarding = {
+                                prefs.edit().putBoolean("has_seen_intro", true).apply()
+                                hasSeenIntro = true
+                                showIntroModal = false
+                            }
+                        )
+                    } else {
+                        when (val state = processingState) {
+                            is ProcessingState.Idle -> {
+                                HomeScreen(
+                                    savedProjects = savedProjects,
+                                    cacheSize = cacheSize,
+                                    onMediaSelected = { uri -> viewModel.selectMedia(uri) },
+                                    onDownloadUrl = { url -> viewModel.downloadFromUrl(url) },
+                                    onApplyPreset = { preset -> viewModel.updateSettings(preset) },
+                                    onDeleteProject = { id -> viewModel.deleteProject(id) },
+                                    onClearCache = { viewModel.clearCache() },
+                                    onOpenPro = { showProPaywall = true },
+                                    onReplayIntro = { showIntroModal = true },
+                                    isProUser = isProUser
+                                )
+                            }
 
                         is ProcessingState.Analyzing -> {
                             Box(
@@ -159,14 +175,15 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
-
-                    if (showProPaywall) {
-                        ProPaywallSheet(
-                            onDismiss = { showProPaywall = false },
-                            onUnlock = { viewModel.unlockPro() }
-                        )
-                    }
                 }
+
+                if (showProPaywall) {
+                    ProPaywallSheet(
+                        onDismiss = { showProPaywall = false },
+                        onUnlock = { viewModel.unlockPro() }
+                    )
+                }
+            }
             }
         }
     }

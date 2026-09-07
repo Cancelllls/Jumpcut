@@ -28,7 +28,8 @@ fun SettingsScreen(
     cacheSize: String,
     onClearCache: () -> Unit,
     isProUser: Boolean,
-    onOpenPro: () -> Unit
+    onOpenPro: () -> Unit,
+    onReplayIntro: () -> Unit
 ) {
     var showClearConfirm by remember { mutableStateOf(false) }
 
@@ -200,6 +201,21 @@ fun SettingsScreen(
             title = "Dual-Pass Audio Engine",
             subtitle = "Zero-crossing waveform detection ensures clean cut seams without pops, clicks, or truncated words."
         )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Replay App Tour Button
+        OutlinedButton(
+            onClick = onReplayIntro,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
+            border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder)))
+        ) {
+            Icon(Icons.Default.HelpOutline, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Replay App Introduction Tour", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        }
 
         Spacer(modifier = Modifier.height(28.dp))
 

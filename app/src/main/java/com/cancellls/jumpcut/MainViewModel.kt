@@ -96,6 +96,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        val isSocialWebLink = urlString.contains("youtube.com", true) ||
+                              urlString.contains("youtu.be", true) ||
+                              urlString.contains("tiktok.com", true) ||
+                              urlString.contains("instagram.com", true) ||
+                              urlString.contains("twitter.com", true) ||
+                              urlString.contains("x.com", true)
+
+        if (isSocialWebLink) {
+            _processingState.value = ProcessingState.Error(
+                "Social platforms (YouTube, TikTok, Reels) protect their streams from direct web downloads. To cut this video: Download it via the free Seal app (powered by yt-dlp) and tap 'Share to JumpCut', or open it via 'Browse Files'."
+            )
+            return
+        }
+
         viewModelScope.launch {
             try {
                 _processingState.value = ProcessingState.Analyzing(0.02f, "Connecting to video URL...")
@@ -112,6 +126,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val responseCode = connection.responseCode
                     if (responseCode !in 200..299) {
                         throw IllegalStateException("Server returned HTTP $responseCode")
+                    }
+
+                    val contentType = connection.contentType ?: ""
+                    if (contentType.contains("text/html", true)) {
+                        throw IllegalStateException("The URL returned a webpage instead of a direct video or audio stream. Please provide a direct video link (.mp4, .mov, .m4a) or cloud link.")
                     }
 
                     val totalBytes = connection.contentLengthLong

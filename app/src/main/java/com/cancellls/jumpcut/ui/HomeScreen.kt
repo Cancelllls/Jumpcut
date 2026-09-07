@@ -40,6 +40,7 @@ fun HomeScreen(
     onDeleteProject: (String) -> Unit,
     onClearCache: () -> Unit,
     onOpenPro: () -> Unit,
+    onReplayIntro: () -> Unit,
     isProUser: Boolean
 ) {
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Cutter, 1: Projects, 2: Settings
@@ -143,7 +144,8 @@ fun HomeScreen(
                     cacheSize = cacheSize,
                     onClearCache = onClearCache,
                     isProUser = isProUser,
-                    onOpenPro = onOpenPro
+                    onOpenPro = onOpenPro,
+                    onReplayIntro = onReplayIntro
                 )
             }
         }
