@@ -35,7 +35,8 @@ object VideoSplicer {
         context: Context,
         inputUri: Uri,
         speechSegments: List<CutSegment>,
-        outputFile: File
+        outputFile: File,
+        extractAudioOnly: Boolean = false
     ): Flow<SplicerProgress> = callbackFlow {
         val validSegments = speechSegments.filter { (it.endMs - it.startMs) >= 80L }
         if (validSegments.isEmpty()) {
@@ -60,6 +61,7 @@ object VideoSplicer {
                 .build()
 
             EditedMediaItem.Builder(mediaItem)
+                .setRemoveVideo(extractAudioOnly)
                 .setFlattenForSlowMotion(false)
                 .build()
         }
@@ -90,12 +92,8 @@ object VideoSplicer {
             .setEnableFallback(true)
             .build()
 
-        val decoderFactory = androidx.media3.transformer.DefaultDecoderFactory.Builder(context)
-            .build()
-
         val transformer = Transformer.Builder(context)
             .setEncoderFactory(encoderFactory)
-            .setDecoderFactory(decoderFactory)
             .setMaxDelayBetweenMuxerSamplesMs(10_000L)
             .addListener(listener)
             .build()

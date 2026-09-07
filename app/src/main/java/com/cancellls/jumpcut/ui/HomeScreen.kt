@@ -15,11 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,10 +27,131 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cancellls.jumpcut.model.CutSettings
+import com.cancellls.jumpcut.model.SavedProject
 import com.cancellls.jumpcut.theme.*
 
 @Composable
 fun HomeScreen(
+    savedProjects: List<SavedProject>,
+    cacheSize: String,
+    onMediaSelected: (Uri) -> Unit,
+    onDownloadUrl: (String) -> Unit,
+    onApplyPreset: (CutSettings) -> Unit,
+    onDeleteProject: (String) -> Unit,
+    onClearCache: () -> Unit,
+    onOpenPro: () -> Unit,
+    isProUser: Boolean
+) {
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Cutter, 1: Projects, 2: Settings
+
+    Scaffold(
+        containerColor = BgDark,
+        bottomBar = {
+            NavigationBar(
+                containerColor = SurfaceDark,
+                contentColor = TextPrimary,
+                tonalElevation = 8.dp
+            ) {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.ContentCut,
+                            contentDescription = "Cutter"
+                        )
+                    },
+                    label = { Text("Cutter", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = PrimaryCyan,
+                        selectedTextColor = PrimaryCyan,
+                        indicatorColor = CardDark,
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    icon = {
+                        BadgedBox(
+                            badge = {
+                                if (savedProjects.isNotEmpty()) {
+                                    Badge(containerColor = PrimaryCyan) {
+                                        Text("${savedProjects.size}", color = BgDark, fontSize = 10.sp)
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VideoLibrary,
+                                contentDescription = "Projects"
+                            )
+                        }
+                    },
+                    label = { Text("Projects", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = PrimaryCyan,
+                        selectedTextColor = PrimaryCyan,
+                        indicatorColor = CardDark,
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings"
+                        )
+                    },
+                    label = { Text("Settings", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = PrimaryCyan,
+                        selectedTextColor = PrimaryCyan,
+                        indicatorColor = CardDark,
+                        unselectedIconColor = TextSecondary,
+                        unselectedTextColor = TextSecondary
+                    )
+                )
+            }
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            when (selectedTab) {
+                0 -> CutterStudioContent(
+                    onMediaSelected = onMediaSelected,
+                    onDownloadUrl = onDownloadUrl,
+                    onApplyPreset = onApplyPreset,
+                    onOpenPro = onOpenPro,
+                    isProUser = isProUser
+                )
+                1 -> ProjectsScreen(
+                    projects = savedProjects,
+                    onDeleteProject = onDeleteProject,
+                    onStartNewProject = { selectedTab = 0 }
+                )
+                2 -> SettingsScreen(
+                    cacheSize = cacheSize,
+                    onClearCache = onClearCache,
+                    isProUser = isProUser,
+                    onOpenPro = onOpenPro
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CutterStudioContent(
     onMediaSelected: (Uri) -> Unit,
     onDownloadUrl: (String) -> Unit,
     onApplyPreset: (CutSettings) -> Unit,
@@ -61,7 +178,7 @@ fun HomeScreen(
             .fillMaxSize()
             .background(BgDark)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 24.dp),
+            .padding(horizontal = 20.dp, vertical = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Top Header
@@ -96,7 +213,7 @@ fun HomeScreen(
                         color = TextPrimary
                     )
                     Text(
-                        text = "Silence Cutter & Enhancer",
+                        text = "Lossless Silence Cutter",
                         fontSize = 12.sp,
                         color = TextSecondary
                     )
@@ -134,35 +251,35 @@ fun HomeScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
         // Hero Title
         Text(
-            text = "Make Your Videos\nSnappy & Engaging",
-            fontSize = 30.sp,
-            lineHeight = 36.sp,
+            text = "Make Your Content\nTight & Engaging",
+            fontSize = 28.sp,
+            lineHeight = 34.sp,
             fontWeight = FontWeight.ExtraBold,
             color = TextPrimary,
             textAlign = TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Automatically detect and cut awkward pauses, breathing, and dead air in seconds.",
-            fontSize = 14.sp,
+            text = "Automatically remove pauses, filler gaps, and dead air without re-encoding quality loss.",
+            fontSize = 13.sp,
             color = TextSecondary,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 16.dp)
         )
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Big Main Pick Video Card
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(210.dp)
+                .height(200.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(SurfaceDark)
                 .border(2.dp, Brush.linearGradient(listOf(PrimaryCyan, NeonViolet)), RoundedCornerShape(24.dp))
@@ -179,7 +296,7 @@ fun HomeScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(64.dp)
+                        .size(60.dp)
                         .clip(CircleShape)
                         .background(CardDark),
                     contentAlignment = Alignment.Center
@@ -188,15 +305,15 @@ fun HomeScreen(
                         imageVector = Icons.Default.VideoCall,
                         contentDescription = "Pick Video",
                         tint = PrimaryCyan,
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier.size(32.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
                     text = "Select Video to Cut",
-                    fontSize = 18.sp,
+                    fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
                 )
@@ -248,7 +365,7 @@ fun HomeScreen(
             ) {
                 Icon(Icons.Default.Link, contentDescription = "Link", tint = NeonViolet, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("From URL / Link", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text("From Link", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
         }
 
@@ -270,7 +387,7 @@ fun HomeScreen(
             Text("Select Audio or Voice Memo (MP3, M4A, WAV)")
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
         // Quick Presets Section
         Row(
@@ -278,20 +395,20 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Preset Styles",
-                fontSize = 16.sp,
+                text = "Preset Sensitivity",
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Pre-calibrated silence sensitivity",
+                text = "Pre-calibrated for speech rhythm",
                 fontSize = 12.sp,
                 color = TextMuted
             )
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -299,7 +416,7 @@ fun HomeScreen(
         ) {
             PresetCard(
                 title = "Shorts / TikTok",
-                subtitle = "Snappy & fast (-30dB)",
+                subtitle = "Snappy (-30dB)",
                 icon = Icons.Default.FlashOn,
                 accentColor = PrimaryCyan,
                 modifier = Modifier.weight(1f)
@@ -309,7 +426,7 @@ fun HomeScreen(
 
             PresetCard(
                 title = "Podcast",
-                subtitle = "Natural flow (-34dB)",
+                subtitle = "Natural (-34dB)",
                 icon = Icons.Default.Podcasts,
                 accentColor = NeonViolet,
                 modifier = Modifier.weight(1f)
@@ -328,30 +445,32 @@ fun HomeScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
         // Feature Highlights
         FeatureItem(
             icon = Icons.Default.Bolt,
-            title = "Instant Lossless Splice",
-            description = "10-minute 4K videos cut in under 5 seconds with zero re-encoding loss."
+            title = "Hardware Lossless Splice",
+            description = "10-minute 4K videos cut in seconds with zero re-encoding loss."
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         FeatureItem(
             icon = Icons.Default.Security,
             title = "100% On-Device & Private",
-            description = "Zero cloud uploads. Your videos never leave your phone hardware."
+            description = "Zero cloud uploads. Your videos never leave your hardware."
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         FeatureItem(
             icon = Icons.Default.VolumeOff,
             title = "Speech Padding Armor",
-            description = "Natural sentence endings and word consonants are never cut off."
+            description = "Natural word endings and consonants are preserved smoothly."
         )
+
+        Spacer(modifier = Modifier.height(24.dp))
     }
 
     if (showUrlDialog) {

@@ -13,9 +13,15 @@ import com.cancellls.jumpcut.engine.AudioExtractor
 import com.cancellls.jumpcut.engine.SilenceDetector
 import com.cancellls.jumpcut.engine.SplicerProgress
 import com.cancellls.jumpcut.engine.VideoSplicer
+import com.cancellls.jumpcut.model.CutSegment
 import com.cancellls.jumpcut.model.CutSettings
+import com.cancellls.jumpcut.model.ExportConfig
 import com.cancellls.jumpcut.model.MediaItem
 import com.cancellls.jumpcut.model.ProcessingState
+import com.cancellls.jumpcut.model.SavedProject
+import com.cancellls.jumpcut.storage.MediaSaver
+import com.cancellls.jumpcut.storage.ProjectRepository
+import com.cancellls.jumpcut.storage.StorageManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +37,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val context: Context get() = getApplication()
     private val TAG = "MainViewModel"
 
+    private val projectRepository = ProjectRepository(context)
+    val savedProjects: StateFlow<List<SavedProject>> = projectRepository.projects
+
     private val _selectedMedia = MutableStateFlow<MediaItem?>(null)
     val selectedMedia: StateFlow<MediaItem?> = _selectedMedia.asStateFlow()
 
@@ -40,6 +49,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _cutSettings = MutableStateFlow(CutSettings())
     val cutSettings: StateFlow<CutSettings> = _cutSettings.asStateFlow()
 
+    private val _exportConfig = MutableStateFlow(ExportConfig())
+    val exportConfig: StateFlow<ExportConfig> = _exportConfig.asStateFlow()
+
     private val _audioAnalysis = MutableStateFlow<AudioAnalysisResult?>(null)
     val audioAnalysis: StateFlow<AudioAnalysisResult?> = _audioAnalysis.asStateFlow()
 
@@ -48,6 +60,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isProUser = MutableStateFlow(false)
     val isProUser: StateFlow<Boolean> = _isProUser.asStateFlow()
+
+    private val _cacheSize = MutableStateFlow("0 MB")
+    val cacheSize: StateFlow<String> = _cacheSize.asStateFlow()
+
+    init {
+        refreshCacheSize()
+    }
+
+    fun refreshCacheSize() {
+        viewModelScope.launch {
+            val bytes = StorageManager.getCacheSizeBytes(context)
+            _cacheSize.value = StorageManager.formatBytes(bytes)
+        }
+    }
+
+    fun clearCache() {
+        viewModelScope.launch {
+            StorageManager.clearTempCache(context)
+            refreshCacheSize()
+        }
+    }
+
+    fun deleteProject(projectId: String) {
+        viewModelScope.launch {
+            projectRepository.deleteProject(projectId)
+            refreshCacheSize()
+        }
+    }
 
     fun downloadFromUrl(rawUrl: String) {
         val urlString = rawUrl.trim()
@@ -137,6 +177,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 _processingState.value = ProcessingState.Analyzing(0.95f, "Detecting silence...")
                 applySilenceDetection(analysis, _cutSettings.value)
+                refreshCacheSize()
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing media", e)
                 _processingState.value = ProcessingState.Error(e.message ?: "Failed to analyze media")
@@ -188,6 +229,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         applySilenceDetection(analysis, newSettings)
     }
 
+    fun toggleSegment(segmentId: Int) {
+        val ready = _processingState.value as? ProcessingState.Ready ?: return
+        val updated = ready.segments.map { seg ->
+            if (seg.id == segmentId) seg.copy(isExcluded = !seg.isExcluded) else seg
+        }
+        val newCutDuration = updated.filter { it.shouldKeep }.sumOf { it.durationMs }
+        _processingState.value = ready.copy(
+            segments = updated,
+            cutDurationMs = newCutDuration
+        )
+    }
+
+    fun updateExportConfig(config: ExportConfig) {
+        _exportConfig.value = config
+    }
+
     private fun applySilenceDetection(analysis: AudioAnalysisResult, settings: CutSettings) {
         val result = SilenceDetector.detect(analysis, settings)
         _processingState.value = ProcessingState.Ready(
@@ -206,13 +263,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _isProUser.value = true
     }
 
-    fun exportSplicedMedia() {
+    fun exportSplicedMedia(config: ExportConfig = _exportConfig.value) {
         val media = _selectedMedia.value ?: return
         val state = _processingState.value as? ProcessingState.Ready ?: return
-        val speechSegments = state.segments.filter { !it.isSilence }
+        val keptSegments = state.segments.filter { it.shouldKeep }
 
-        if (speechSegments.isEmpty()) {
-            _processingState.value = ProcessingState.Error("No speech detected to export")
+        if (keptSegments.isEmpty()) {
+            _processingState.value = ProcessingState.Error("No content selected to export")
             return
         }
 
@@ -221,25 +278,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _processingState.value = ProcessingState.Exporting(0f, "Starting video splicing...")
 
                 val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                val extension = if (media.isVideo) "mp4" else "m4a"
-                val outputDir = File(context.cacheDir, "exports").apply { mkdirs() }
-                val outputFile = File(outputDir, "JumpCut_$timestamp.$extension")
+                val isAudioOnly = config.extractAudioOnly || !media.isVideo
+                val extension = if (isAudioOnly) "m4a" else "mp4"
+                val outputDir = File(context.filesDir, "exports").apply { mkdirs() }
+                val outputFile = File(outputDir, "JumpCut_${media.name.substringBeforeLast(".")}_$timestamp.$extension")
 
                 VideoSplicer.splice(
                     context = context,
                     inputUri = media.uri,
-                    speechSegments = speechSegments,
-                    outputFile = outputFile
+                    speechSegments = keptSegments,
+                    outputFile = outputFile,
+                    extractAudioOnly = isAudioOnly
                 ).collect { progress ->
                     when (progress) {
                         is SplicerProgress.Progress -> {
                             val percentText = (progress.percentage * 100).toInt()
                             _processingState.value = ProcessingState.Exporting(
                                 progress.percentage,
-                                "Splicing video: $percentText%"
+                                "Splicing media: $percentText%"
                             )
                         }
                         is SplicerProgress.Success -> {
+                            val isVideoOutput = !isAudioOnly
+
+                            if (config.saveToGallery) {
+                                MediaSaver.saveToGallery(context, progress.outputFile, isVideoOutput)
+                            }
+
+                            // Save to Project History
+                            val projectId = "proj_${System.currentTimeMillis()}"
+                            val title = "JumpCut_${media.name.substringBeforeLast(".")}"
+                            projectRepository.saveProject(
+                                id = projectId,
+                                title = title,
+                                originalDurationMs = state.originalDurationMs,
+                                cutDurationMs = state.cutDurationMs,
+                                savedPercent = state.savedPercent,
+                                file = progress.outputFile,
+                                isVideo = isVideoOutput
+                            )
+
+                            refreshCacheSize()
+
                             _processingState.value = ProcessingState.Exported(
                                 outputUri = Uri.fromFile(progress.outputFile),
                                 outputPath = progress.outputFile.absolutePath,
@@ -267,6 +347,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedMedia.value = null
         _audioAnalysis.value = null
         _processingState.value = ProcessingState.Idle
+        refreshCacheSize()
     }
 
     private suspend fun inspectMedia(uri: Uri): MediaItem = withContext(Dispatchers.IO) {
@@ -313,7 +394,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 height = height
             )
         } finally {
-            retriever.release()
+            try { retriever.release() } catch (_: Exception) {}
         }
     }
 }

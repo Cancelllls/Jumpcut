@@ -197,11 +197,32 @@ fun ExportScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                // Gallery Saved Badge
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(CardDark)
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Saved to Gallery & Projects Library",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = GreenSuccess
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
 
                 // Action: Share Video
                 Button(
-                    onClick = { shareVideo(context, outputFile) },
+                    onClick = {
+                        val isVideo = outputFile.name.endsWith(".mp4", true) || outputFile.name.endsWith(".mov", true)
+                        com.cancellls.jumpcut.storage.MediaSaver.shareMedia(context, outputFile, isVideo)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -225,12 +246,12 @@ fun ExportScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Action: Process Another Video
+                // Action: Return to Studio & Projects
                 TextButton(
                     onClick = onDoneClick,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Process Another Video", color = TextSecondary, fontSize = 14.sp)
+                    Text("Done • Return to Studio", color = TextSecondary, fontSize = 14.sp)
                 }
             }
 

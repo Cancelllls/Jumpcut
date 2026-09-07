@@ -16,9 +16,36 @@ data class CutSegment(
     val id: Int,
     val startMs: Long,
     val endMs: Long,
-    val isSilence: Boolean
+    val isSilence: Boolean,
+    val isExcluded: Boolean = false
 ) {
     val durationMs: Long get() = (endMs - startMs).coerceAtLeast(0)
+    val shouldKeep: Boolean get() = if (isSilence) isExcluded else !isExcluded
+}
+
+data class ExportConfig(
+    val extractAudioOnly: Boolean = false,
+    val saveToGallery: Boolean = true,
+    val boostVoice: Boolean = false
+)
+
+data class SavedProject(
+    val id: String,
+    val title: String,
+    val originalDurationMs: Long,
+    val cutDurationMs: Long,
+    val savedPercent: Int,
+    val filePath: String,
+    val fileSizeBytes: Long,
+    val isVideo: Boolean,
+    val createdAtMs: Long,
+    val thumbnailPath: String? = null
+) {
+    val formattedSize: String get() {
+        val mb = fileSizeBytes / (1024.0 * 1024.0)
+        return if (mb >= 1.0) String.format(java.util.Locale.US, "%.1f MB", mb)
+        else String.format(java.util.Locale.US, "%d KB", fileSizeBytes / 1024)
+    }
 }
 
 data class CutSettings(
