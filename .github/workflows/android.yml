@@ -59,15 +59,15 @@ jobs:
           mkdir -p release_assets
           # Find and copy signed release apk
           if [ -f app/build/outputs/apk/release/app-release.apk ]; then
-            cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-v1.1.0-release.apk
+            cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-v1.2.0-release.apk
             cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-release.apk
           elif [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-v1.1.0-release.apk
+            cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-v1.2.0-release.apk
             cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-release.apk
           fi
           # Copy debug apk
           if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-v1.1.0-debug.apk
+            cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-v1.2.0-debug.apk
             cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-debug.apk
           fi
           echo "Release assets ready:"
@@ -92,28 +92,27 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.1.0' }}
-          name: "JumpCut AI ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.1.0' }}"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.2.0' }}
+          name: "JumpCut AI ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.2.0' }}"
           draft: false
           prerelease: false
           body: |
-            ## 🚀 JumpCut AI v1.1.0 (Production Release)
+            ## 🚀 JumpCut AI v1.2.0 (Creator Studio Overhaul)
             
-            ### 🎨 What's New in v1.1.0:
-            - **Studio Visual Redesign (No Purple)**: Redesigned with a deep obsidian & slate dark theme accented by Electric Cyan, Sapphire Blue, and Emerald Mint.
-            - **Interactive Onboarding Walkthrough**: 4-step welcome guide explaining silence cutting, hardware passthrough, word padding armor, and segment editing.
-            - **Persistent Project Library**: Past exports are automatically saved with thumbnails, duration pills, file sizes, in-app fullscreen replay, and 1-tap sharing.
-            - **Granular Segment Inspector**: Creators can inspect all detected pauses on the timeline and toggle individual cuts (keep vs cut) with live duration calculation.
-            - **Playback Speed Controls**: Quick 0.75x, 1.0x, 1.25x, 1.5x, and 2.0x chips to review long footage rapidly.
-            - **Export Configuration Modal**: Switch between lossless Video (MP4) and Audio-Only (M4A extraction for podcasters), with direct save to Android Gallery (`Movies/JumpCut`).
-            - **Storage Manager & Cache Cleaner**: Check cache usage in Settings and clean temp waveforms/downloads in 1 tap.
+            ### 🎬 What's New in v1.2.0:
+            - **Auto-Zoom Jumpcuts ("YouTuber / 2-Camera Pacing")**: Alternating subtle 1.12x punch-in zooms on consecutive speech cuts to create engaging talking-head retention dynamics for YouTube, Shorts, and TikTok.
+            - **Professional Desktop NLE Bridge (.EDL / .XML Export)**: Creators can now export standard CMX 3600 Edit Decision Lists (`.edl`) and Final Cut Pro XML files directly from mobile into DaVinci Resolve or Adobe Premiere Pro with all individual cuts preserved.
+            - **Multi-Scale Pinch & Zoom Waveform (1x, 2x, 4x)**: Zoom the audio timeline for sub-second precision inspection with smooth auto-centering playhead scrolling and tactile haptics.
+            - **Custom Creator Profiles & Presets**: Save, name, and manage custom silence sensitivity, minimum pause length, and word padding presets (e.g. Studio Mic, Podcast, Walk & Talk).
+            - **Lossless Hardware Splice Pipeline**: 100% on-device private processing with zero cloud uploads and near-instant render times.
+            - **Zero Purple Cinematic Theme**: Deep Obsidian `#0B0F17` & Slate `#111827` surface with Electric Cyan & Sapphire Blue accents.
             
             ### 📱 Download & Install:
-            - **`JumpCut-v1.1.0-release.apk`** / **`JumpCut-release.apk`** — Production Signed Release (Tap to install directly)
-            - **`JumpCut-v1.1.0-debug.apk`** / **`JumpCut-debug.apk`** — Debug Build with extended developer logging
+            - **`JumpCut-v1.2.0-release.apk`** / **`JumpCut-release.apk`** — Production Signed Release (Direct APK installer)
+            - **`JumpCut-v1.2.0-debug.apk`** / **`JumpCut-debug.apk`** — Debug Build with extended developer logging
           files: |
-            release_assets/JumpCut-v1.1.0-release.apk
-            release_assets/JumpCut-v1.1.0-debug.apk
+            release_assets/JumpCut-v1.2.0-release.apk
+            release_assets/JumpCut-v1.2.0-debug.apk
             release_assets/JumpCut-release.apk
             release_assets/JumpCut-debug.apk
         env:

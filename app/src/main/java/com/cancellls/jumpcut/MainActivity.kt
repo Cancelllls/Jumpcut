@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
                 val isProUser by viewModel.isProUser.collectAsState()
                 val skipSilencePreview by viewModel.skipSilencePreview.collectAsState()
                 val savedProjects by viewModel.savedProjects.collectAsState()
+                val creatorPresets by viewModel.creatorPresets.collectAsState()
                 val cacheSize by viewModel.cacheSize.collectAsState()
 
                 var showProPaywall by remember { mutableStateOf(false) }
@@ -99,9 +100,12 @@ class MainActivity : ComponentActivity() {
                                 HomeScreen(
                                     savedProjects = savedProjects,
                                     cacheSize = cacheSize,
+                                    creatorPresets = creatorPresets,
                                     onMediaSelected = { uri -> viewModel.selectMedia(uri) },
                                     onDownloadUrl = { url -> viewModel.downloadFromUrl(url) },
                                     onApplyPreset = { preset -> viewModel.updateSettings(preset) },
+                                    onDeleteCustomPreset = { id -> viewModel.deleteCustomPreset(id) },
+                                    onExportProjectEdl = { project, asXml -> viewModel.exportProjectEdl(this@MainActivity, project, asXml) },
                                     onDeleteProject = { id -> viewModel.deleteProject(id) },
                                     onClearCache = { viewModel.clearCache() },
                                     onOpenPro = { showProPaywall = true },
@@ -151,12 +155,19 @@ class MainActivity : ComponentActivity() {
                                     cutSettings = cutSettings,
                                     skipSilencePreview = skipSilencePreview,
                                     exportConfig = exportConfig,
+                                    creatorPresets = creatorPresets,
                                     onSettingsChanged = { viewModel.updateSettings(it) },
                                     onToggleSkipSilence = { viewModel.toggleSkipSilencePreview(it) },
                                     onToggleSegment = { segId -> viewModel.toggleSegment(segId) },
                                     onExportConfirm = { config ->
                                         viewModel.updateExportConfig(config)
                                         viewModel.exportSplicedMedia(config)
+                                    },
+                                    onSavePreset = { name, settings ->
+                                        viewModel.saveCustomPreset(name, settings)
+                                    },
+                                    onExportEdl = { asXml ->
+                                        viewModel.exportCurrentEdl(this@MainActivity, asXml)
                                     },
                                     onBackClick = { viewModel.reset() }
                                 )

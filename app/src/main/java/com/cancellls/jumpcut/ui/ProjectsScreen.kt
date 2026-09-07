@@ -46,7 +46,8 @@ import java.util.Locale
 fun ProjectsScreen(
     projects: List<SavedProject>,
     onDeleteProject: (String) -> Unit,
-    onStartNewProject: () -> Unit
+    onStartNewProject: () -> Unit,
+    onExportEdl: ((SavedProject, Boolean) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var playingProject by remember { mutableStateOf<SavedProject?>(null) }
@@ -233,6 +234,9 @@ fun ProjectsScreen(
                                 isVideo = project.isVideo
                             )
                         },
+                        onExportEdl = if (project.segmentsJson != null && onExportEdl != null) {
+                            { onExportEdl(project, false) }
+                        } else null,
                         onDelete = { projectToDelete = project }
                     )
                 }
@@ -263,7 +267,7 @@ fun ProjectsScreen(
             title = { Text("Delete Export?", color = TextPrimary, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    "Are you sure you want to delete \"${proj.title}\"? This will permanently delete the file (${proj.formattedSize}) from your phone storage.",
+                    text = "Are you sure you want to delete \"${proj.title}\"? The exported file will be removed permanently from storage.",
                     color = TextSecondary,
                     fontSize = 13.sp
                 )
@@ -276,7 +280,7 @@ fun ProjectsScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = SilenceRed)
                 ) {
-                    Text("Delete", color = TextPrimary, fontWeight = FontWeight.Bold)
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -293,6 +297,7 @@ fun ProjectCard(
     project: SavedProject,
     onPlay: () -> Unit,
     onShare: () -> Unit,
+    onExportEdl: (() -> Unit)? = null,
     onDelete: () -> Unit
 ) {
     val dateStr = remember(project.createdAtMs) {
@@ -408,7 +413,7 @@ fun ProjectCard(
                 }
             }
 
-            // Quick Actions: Share and Delete
+            // Quick Actions: Share, EDL Export, and Delete
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 IconButton(
                     onClick = onShare,
@@ -420,6 +425,19 @@ fun ProjectCard(
                         tint = PrimaryCyan,
                         modifier = Modifier.size(20.dp)
                     )
+                }
+                if (onExportEdl != null) {
+                    IconButton(
+                        onClick = onExportEdl,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DesktopWindows,
+                            contentDescription = "Export EDL",
+                            tint = ElectricBlue,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
                 IconButton(
                     onClick = onDelete,

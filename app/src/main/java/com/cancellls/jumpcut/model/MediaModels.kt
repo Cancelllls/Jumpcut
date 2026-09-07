@@ -26,7 +26,8 @@ data class CutSegment(
 data class ExportConfig(
     val extractAudioOnly: Boolean = false,
     val saveToGallery: Boolean = true,
-    val boostVoice: Boolean = false
+    val boostVoice: Boolean = false,
+    val autoZoomJumpcuts: Boolean = false
 )
 
 data class SavedProject(
@@ -39,7 +40,8 @@ data class SavedProject(
     val fileSizeBytes: Long,
     val isVideo: Boolean,
     val createdAtMs: Long,
-    val thumbnailPath: String? = null
+    val thumbnailPath: String? = null,
+    val segmentsJson: String? = null
 ) {
     val formattedSize: String get() {
         val mb = fileSizeBytes / (1024.0 * 1024.0)
@@ -54,6 +56,13 @@ data class CutSettings(
     val paddingMs: Long = 50L,
     val removeNoise: Boolean = true,
     val volumeBoost: Float = 1.0f
+)
+
+data class CreatorPreset(
+    val id: String,
+    val name: String,
+    val settings: CutSettings,
+    val isBuiltIn: Boolean = false
 )
 
 sealed class ProcessingState {

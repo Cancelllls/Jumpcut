@@ -10,9 +10,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.cancellls.jumpcut.engine.AudioAnalysisResult
 import com.cancellls.jumpcut.engine.AudioExtractor
+import com.cancellls.jumpcut.engine.EdlExporter
 import com.cancellls.jumpcut.engine.SilenceDetector
 import com.cancellls.jumpcut.engine.SplicerProgress
 import com.cancellls.jumpcut.engine.VideoSplicer
+import com.cancellls.jumpcut.model.CreatorPreset
 import com.cancellls.jumpcut.model.CutSegment
 import com.cancellls.jumpcut.model.CutSettings
 import com.cancellls.jumpcut.model.ExportConfig
@@ -20,6 +22,7 @@ import com.cancellls.jumpcut.model.MediaItem
 import com.cancellls.jumpcut.model.ProcessingState
 import com.cancellls.jumpcut.model.SavedProject
 import com.cancellls.jumpcut.storage.MediaSaver
+import com.cancellls.jumpcut.storage.PresetRepository
 import com.cancellls.jumpcut.storage.ProjectRepository
 import com.cancellls.jumpcut.storage.StorageManager
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +42,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val projectRepository = ProjectRepository(context)
     val savedProjects: StateFlow<List<SavedProject>> = projectRepository.projects
+
+    private val presetRepository = PresetRepository(context)
+    val creatorPresets: StateFlow<List<CreatorPreset>> = presetRepository.presets
 
     private val _selectedMedia = MutableStateFlow<MediaItem?>(null)
     val selectedMedia: StateFlow<MediaItem?> = _selectedMedia.asStateFlow()
@@ -307,7 +313,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     inputUri = media.uri,
                     speechSegments = keptSegments,
                     outputFile = outputFile,
-                    extractAudioOnly = isAudioOnly
+                    extractAudioOnly = isAudioOnly,
+                    autoZoomJumpcuts = config.autoZoomJumpcuts
                 ).collect { progress ->
                     when (progress) {
                         is SplicerProgress.Progress -> {
@@ -324,9 +331,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 MediaSaver.saveToGallery(context, progress.outputFile, isVideoOutput)
                             }
 
-                            // Save to Project History
+                            // Save to Project History with segments for desktop EDL export
                             val projectId = "proj_${System.currentTimeMillis()}"
                             val title = "JumpCut_${media.name.substringBeforeLast(".")}"
+                            val segmentsJson = EdlExporter.segmentsToJson(keptSegments)
+
                             projectRepository.saveProject(
                                 id = projectId,
                                 title = title,
@@ -334,7 +343,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 cutDurationMs = state.cutDurationMs,
                                 savedPercent = state.savedPercent,
                                 file = progress.outputFile,
-                                isVideo = isVideoOutput
+                                isVideo = isVideoOutput,
+                                segmentsJson = segmentsJson
                             )
 
                             refreshCacheSize()
@@ -360,6 +370,75 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _processingState.value = ProcessingState.Error(e.message ?: "Failed to export video")
             }
         }
+    }
+
+    fun saveCustomPreset(name: String, settings: CutSettings): CreatorPreset {
+        return presetRepository.saveCustomPreset(name, settings)
+    }
+
+    fun deleteCustomPreset(id: String) {
+        presetRepository.deletePreset(id)
+    }
+
+    fun exportCurrentEdl(context: Context, asXml: Boolean = false): File? {
+        val media = _selectedMedia.value ?: return null
+        val state = _processingState.value as? ProcessingState.Ready ?: return null
+        val keptSegments = state.segments.filter { it.shouldKeep }
+        if (keptSegments.isEmpty()) return null
+
+        val projectName = media.name.substringBeforeLast(".")
+        val file = if (asXml) {
+            EdlExporter.exportFcpXmlToFile(
+                context = context,
+                projectName = projectName,
+                sourceClipName = media.name,
+                sourceDurationMs = state.originalDurationMs,
+                speechSegments = keptSegments
+            )
+        } else {
+            EdlExporter.exportEdlToFile(
+                context = context,
+                projectName = projectName,
+                sourceClipName = media.name,
+                speechSegments = keptSegments
+            )
+        }
+        MediaSaver.shareDocument(
+            context = context,
+            file = file,
+            mimeType = if (asXml) "application/xml" else "text/plain",
+            title = "Share Timeline (${if (asXml) ".XML" else ".EDL"})"
+        )
+        return file
+    }
+
+    fun exportProjectEdl(context: Context, project: SavedProject, asXml: Boolean = false): File? {
+        val segments = project.segmentsJson?.let { EdlExporter.jsonToSegments(it) } ?: emptyList()
+        if (segments.isEmpty()) return null
+
+        val file = if (asXml) {
+            EdlExporter.exportFcpXmlToFile(
+                context = context,
+                projectName = project.title,
+                sourceClipName = File(project.filePath).name,
+                sourceDurationMs = project.originalDurationMs,
+                speechSegments = segments
+            )
+        } else {
+            EdlExporter.exportEdlToFile(
+                context = context,
+                projectName = project.title,
+                sourceClipName = File(project.filePath).name,
+                speechSegments = segments
+            )
+        }
+        MediaSaver.shareDocument(
+            context = context,
+            file = file,
+            mimeType = if (asXml) "application/xml" else "text/plain",
+            title = "Share Timeline (${if (asXml) ".XML" else ".EDL"})"
+        )
+        return file
     }
 
     fun reset() {

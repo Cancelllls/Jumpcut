@@ -34,6 +34,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import androidx.compose.foundation.horizontalScroll
+import com.cancellls.jumpcut.model.CreatorPreset
 import com.cancellls.jumpcut.model.CutSegment
 import com.cancellls.jumpcut.model.CutSettings
 import com.cancellls.jumpcut.model.ExportConfig
@@ -54,10 +56,13 @@ fun EditorScreen(
     cutSettings: CutSettings,
     skipSilencePreview: Boolean,
     exportConfig: ExportConfig,
+    creatorPresets: List<CreatorPreset> = emptyList(),
     onSettingsChanged: (CutSettings) -> Unit,
     onToggleSkipSilence: (Boolean) -> Unit,
     onToggleSegment: (Int) -> Unit,
     onExportConfirm: (ExportConfig) -> Unit,
+    onSavePreset: ((String, CutSettings) -> Unit)? = null,
+    onExportEdl: ((Boolean) -> Unit)? = null,
     onBackClick: () -> Unit
 ) {
     val context = LocalContext.current
@@ -81,6 +86,8 @@ fun EditorScreen(
     var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Parameters, 1: Segments List
     var showExportSheet by remember { mutableStateOf(false) }
+    var showSavePresetDialog by remember { mutableStateOf(false) }
+    var newPresetName by remember { mutableStateOf("") }
 
     // Initialize ExoPlayer
     val exoPlayer = remember {
@@ -172,19 +179,42 @@ fun EditorScreen(
                 )
             }
 
-            // Time Saved Badge
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Brush.horizontalGradient(listOf(GreenSuccess, PrimaryCyan)))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = "✂️ Saved ${formatTime((originalDurationMs - cutDurationMs).coerceAtLeast(0))} ($savedPercent%)",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = BgDark
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (onExportEdl != null) {
+                    IconButton(
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onExportEdl(false)
+                        },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(CardDark)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DesktopWindows,
+                            contentDescription = "Export EDL",
+                            tint = PrimaryCyan,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+
+                // Time Saved Badge
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Brush.horizontalGradient(listOf(GreenSuccess, PrimaryCyan)))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "✂️ ${formatTime((originalDurationMs - cutDurationMs).coerceAtLeast(0))} ($savedPercent%)",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BgDark
+                    )
+                }
             }
         }
 
@@ -415,6 +445,63 @@ fun EditorScreen(
 
             // Tab Content
             if (selectedTab == 0) {
+                // Preset Quick-Select Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // + Save Preset chip
+                    if (onSavePreset != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(PrimaryCyan.copy(alpha = 0.15f))
+                                .border(1.dp, PrimaryCyan.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                                .clickable {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    showSavePresetDialog = true
+                                }
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Add, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Save Preset", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryCyan)
+                            }
+                        }
+                    }
+
+                    // Available presets (Built-in + Custom)
+                    creatorPresets.forEach { preset ->
+                        val isMatched = (cutSettings.silenceThresholdDb == preset.settings.silenceThresholdDb &&
+                                         cutSettings.minSilenceDurationMs == preset.settings.minSilenceDurationMs &&
+                                         cutSettings.paddingMs == preset.settings.paddingMs)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isMatched) CardBorder else CardDark)
+                                .border(1.dp, if (isMatched) PrimaryCyan else CardBorder, RoundedCornerShape(10.dp))
+                                .clickable {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onSettingsChanged(preset.settings)
+                                }
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = preset.name,
+                                fontSize = 11.sp,
+                                fontWeight = if (isMatched) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isMatched) PrimaryCyan else TextSecondary
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
                 // Sliders Card
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -606,6 +693,71 @@ fun EditorScreen(
             onConfirmExport = { config ->
                 showExportSheet = false
                 onExportConfirm(config)
+            },
+            onExportEdl = onExportEdl
+        )
+    }
+
+    if (showSavePresetDialog && onSavePreset != null) {
+        AlertDialog(
+            onDismissRequest = { showSavePresetDialog = false },
+            containerColor = SurfaceDark,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.BookmarkBorder, contentDescription = null, tint = PrimaryCyan)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Save Custom Preset", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Save current threshold and padding values as a reusable profile:",
+                        fontSize = 13.sp,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = newPresetName,
+                        onValueChange = { newPresetName = it },
+                        placeholder = { Text("Preset name (e.g. Wireless Mic)", color = TextMuted) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = PrimaryCyan,
+                            unfocusedBorderColor = CardBorder,
+                            cursorColor = PrimaryCyan
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "Values: ${cutSettings.silenceThresholdDb.toInt()} dB • ${cutSettings.minSilenceDurationMs} ms • ${cutSettings.paddingMs} ms padding",
+                        fontSize = 11.sp,
+                        color = PrimaryCyan
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val name = newPresetName.trim().ifEmpty { "Custom Profile" }
+                        onSavePreset(name, cutSettings)
+                        newPresetName = ""
+                        showSavePresetDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan)
+                ) {
+                    Text("Save Preset", color = BgDark, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSavePresetDialog = false }) {
+                    Text("Cancel", color = TextSecondary)
+                }
             }
         )
     }

@@ -50,7 +50,8 @@ class ProjectRepository(private val context: Context) {
                     fileSizeBytes = obj.optLong("fileSizeBytes", 0L),
                     isVideo = obj.optBoolean("isVideo", true),
                     createdAtMs = obj.optLong("createdAtMs", System.currentTimeMillis()),
-                    thumbnailPath = obj.optString("thumbnailPath").takeIf { it.isNotBlank() }
+                    thumbnailPath = obj.optString("thumbnailPath").takeIf { it.isNotBlank() },
+                    segmentsJson = obj.optString("segmentsJson").takeIf { it.isNotBlank() }
                 )
                 // Only keep if the exported file actually exists on disk
                 if (File(project.filePath).exists()) {
@@ -73,7 +74,8 @@ class ProjectRepository(private val context: Context) {
         cutDurationMs: Long,
         savedPercent: Int,
         file: File,
-        isVideo: Boolean
+        isVideo: Boolean,
+        segmentsJson: String? = null
     ): SavedProject = withContext(Dispatchers.IO) {
         var thumbnailPath: String? = null
         if (isVideo && file.exists()) {
@@ -90,7 +92,8 @@ class ProjectRepository(private val context: Context) {
             fileSizeBytes = file.length(),
             isVideo = isVideo,
             createdAtMs = System.currentTimeMillis(),
-            thumbnailPath = thumbnailPath
+            thumbnailPath = thumbnailPath,
+            segmentsJson = segmentsJson
         )
 
         val currentList = _projects.value.toMutableList()
@@ -161,6 +164,7 @@ class ProjectRepository(private val context: Context) {
                     put("isVideo", p.isVideo)
                     put("createdAtMs", p.createdAtMs)
                     put("thumbnailPath", p.thumbnailPath ?: "")
+                    put("segmentsJson", p.segmentsJson ?: "")
                 }
                 array.put(obj)
             }

@@ -111,4 +111,32 @@ object MediaSaver {
             Log.e(TAG, "Error sharing media", e)
         }
     }
+
+    fun shareDocument(
+        context: Context,
+        file: File,
+        mimeType: String = "text/plain",
+        title: String = "Share Timeline"
+    ) {
+        try {
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = mimeType
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, file.name)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
+            val chooser = Intent.createChooser(intent, title)
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(chooser)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sharing document", e)
+        }
+    }
 }

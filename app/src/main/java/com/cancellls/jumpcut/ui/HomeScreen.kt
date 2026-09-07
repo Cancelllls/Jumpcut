@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cancellls.jumpcut.model.CreatorPreset
 import com.cancellls.jumpcut.model.CutSettings
 import com.cancellls.jumpcut.model.SavedProject
 import com.cancellls.jumpcut.theme.*
@@ -34,9 +36,12 @@ import com.cancellls.jumpcut.theme.*
 fun HomeScreen(
     savedProjects: List<SavedProject>,
     cacheSize: String,
+    creatorPresets: List<CreatorPreset> = emptyList(),
     onMediaSelected: (Uri) -> Unit,
     onDownloadUrl: (String) -> Unit,
     onApplyPreset: (CutSettings) -> Unit,
+    onDeleteCustomPreset: ((String) -> Unit)? = null,
+    onExportProjectEdl: ((SavedProject, Boolean) -> Unit)? = null,
     onDeleteProject: (String) -> Unit,
     onClearCache: () -> Unit,
     onOpenPro: () -> Unit,
@@ -129,16 +134,19 @@ fun HomeScreen(
         ) {
             when (selectedTab) {
                 0 -> CutterStudioContent(
+                    creatorPresets = creatorPresets,
                     onMediaSelected = onMediaSelected,
                     onDownloadUrl = onDownloadUrl,
                     onApplyPreset = onApplyPreset,
+                    onDeleteCustomPreset = onDeleteCustomPreset,
                     onOpenPro = onOpenPro,
                     isProUser = isProUser
                 )
                 1 -> ProjectsScreen(
                     projects = savedProjects,
                     onDeleteProject = onDeleteProject,
-                    onStartNewProject = { selectedTab = 0 }
+                    onStartNewProject = { selectedTab = 0 },
+                    onExportEdl = onExportProjectEdl
                 )
                 2 -> SettingsScreen(
                     cacheSize = cacheSize,
@@ -154,9 +162,11 @@ fun HomeScreen(
 
 @Composable
 fun CutterStudioContent(
+    creatorPresets: List<CreatorPreset> = emptyList(),
     onMediaSelected: (Uri) -> Unit,
     onDownloadUrl: (String) -> Unit,
     onApplyPreset: (CutSettings) -> Unit,
+    onDeleteCustomPreset: ((String) -> Unit)? = null,
     onOpenPro: () -> Unit,
     isProUser: Boolean
 ) {
@@ -439,37 +449,60 @@ fun CutterStudioContent(
         Spacer(modifier = Modifier.height(12.dp))
 
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            PresetCard(
-                title = "Shorts / TikTok",
-                subtitle = "Snappy (-30dB)",
-                icon = Icons.Default.FlashOn,
-                accentColor = PrimaryCyan,
-                modifier = Modifier.weight(1f)
-            ) {
-                onApplyPreset(CutSettings(silenceThresholdDb = -30f, minSilenceDurationMs = 250L, paddingMs = 40L))
-            }
+            val displayPresets = if (creatorPresets.isNotEmpty()) creatorPresets else listOf(
+                CreatorPreset("preset_shorts", "Shorts / TikTok", CutSettings(-30f, 250L, 40L), isBuiltIn = true),
+                CreatorPreset("preset_podcast", "Podcast", CutSettings(-34f, 450L, 70L), isBuiltIn = true),
+                CreatorPreset("preset_lecture", "Lecture", CutSettings(-28f, 200L, 30L), isBuiltIn = true)
+            )
 
-            PresetCard(
-                title = "Podcast",
-                subtitle = "Natural (-34dB)",
-                icon = Icons.Default.Podcasts,
-                accentColor = ElectricBlue,
-                modifier = Modifier.weight(1f)
-            ) {
-                onApplyPreset(CutSettings(silenceThresholdDb = -34f, minSilenceDurationMs = 450L, paddingMs = 70L))
-            }
+            displayPresets.forEach { preset ->
+                val icon = when {
+                    preset.name.contains("Short", true) || preset.name.contains("TikTok", true) -> Icons.Default.FlashOn
+                    preset.name.contains("Pod", true) -> Icons.Default.Podcasts
+                    preset.name.contains("Lect", true) -> Icons.Default.Speed
+                    preset.name.contains("Vlog", true) -> Icons.Default.Videocam
+                    else -> Icons.Default.Tune
+                }
+                val accent = when {
+                    preset.name.contains("Short", true) -> PrimaryCyan
+                    preset.name.contains("Pod", true) -> ElectricBlue
+                    preset.name.contains("Lect", true) -> GreenSuccess
+                    else -> PrimaryCyan
+                }
 
-            PresetCard(
-                title = "Lecture",
-                subtitle = "Aggressive (-28dB)",
-                icon = Icons.Default.Speed,
-                accentColor = GreenSuccess,
-                modifier = Modifier.weight(1f)
-            ) {
-                onApplyPreset(CutSettings(silenceThresholdDb = -28f, minSilenceDurationMs = 200L, paddingMs = 30L))
+                Box(modifier = Modifier.width(136.dp)) {
+                    PresetCard(
+                        title = preset.name,
+                        subtitle = "${preset.settings.silenceThresholdDb.toInt()}dB / ${preset.settings.paddingMs}ms",
+                        icon = icon,
+                        accentColor = accent,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        onApplyPreset(preset.settings)
+                    }
+
+                    if (!preset.isBuiltIn && onDeleteCustomPreset != null) {
+                        IconButton(
+                            onClick = { onDeleteCustomPreset(preset.id) },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(2.dp)
+                                .size(24.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Delete",
+                                tint = TextMuted,
+                                modifier = Modifier.size(13.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
 

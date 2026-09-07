@@ -30,10 +30,12 @@ fun ExportBottomSheet(
     cutDurationMs: Long,
     savedPercent: Int,
     onDismiss: () -> Unit,
-    onConfirmExport: (ExportConfig) -> Unit
+    onConfirmExport: (ExportConfig) -> Unit,
+    onExportEdl: ((Boolean) -> Unit)? = null
 ) {
     var extractAudioOnly by remember { mutableStateOf(initialConfig.extractAudioOnly || !isVideo) }
     var saveToGallery by remember { mutableStateOf(initialConfig.saveToGallery) }
+    var autoZoomJumpcuts by remember { mutableStateOf(initialConfig.autoZoomJumpcuts) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -211,7 +213,68 @@ fun ExportBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Auto-Zoom Jumpcuts (talking-head dynamic zoom)
+            if (isVideo && !extractAudioOnly) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(CardDark)
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ZoomIn,
+                            contentDescription = null,
+                            tint = PrimaryCyan,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Auto-Zoom Jumpcuts",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(PrimaryCyan.copy(alpha = 0.2f))
+                                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                                ) {
+                                    Text("PRO PACING", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = PrimaryCyan)
+                                }
+                            }
+                            Text(
+                                text = "Alternates 1.12x punch-ins for YouTube retention",
+                                fontSize = 11.sp,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = autoZoomJumpcuts,
+                        onCheckedChange = { autoZoomJumpcuts = it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = TextPrimary,
+                            checkedTrackColor = PrimaryCyan,
+                            uncheckedTrackColor = CardBorder
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             // Save to Gallery switch
             Row(
@@ -259,7 +322,7 @@ fun ExportBottomSheet(
                 )
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Start Export Button
             Button(
@@ -267,7 +330,8 @@ fun ExportBottomSheet(
                     onConfirmExport(
                         ExportConfig(
                             extractAudioOnly = extractAudioOnly,
-                            saveToGallery = saveToGallery
+                            saveToGallery = saveToGallery,
+                            autoZoomJumpcuts = autoZoomJumpcuts
                         )
                     )
                 },
@@ -294,6 +358,41 @@ fun ExportBottomSheet(
                             color = BgDark
                         )
                     }
+                }
+            }
+
+            // Desktop NLE Bridge Export Button
+            if (onExportEdl != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = {
+                        onExportEdl(false)
+                        onDismiss()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = CardDark,
+                        contentColor = TextPrimary
+                    ),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                        brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder))
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.DesktopWindows,
+                        contentDescription = null,
+                        tint = PrimaryCyan,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Export Timeline (.EDL for Premiere & DaVinci)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }

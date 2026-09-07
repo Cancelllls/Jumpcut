@@ -8,9 +8,11 @@ import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
+import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
@@ -36,7 +38,8 @@ object VideoSplicer {
         inputUri: Uri,
         speechSegments: List<CutSegment>,
         outputFile: File,
-        extractAudioOnly: Boolean = false
+        extractAudioOnly: Boolean = false,
+        autoZoomJumpcuts: Boolean = false
     ): Flow<SplicerProgress> = callbackFlow {
         val validSegments = speechSegments.filter { (it.endMs - it.startMs) >= 80L }
         if (validSegments.isEmpty()) {
@@ -48,7 +51,13 @@ object VideoSplicer {
         val handler = Handler(Looper.getMainLooper())
         val progressHolder = ProgressHolder()
 
-        val editedMediaItems = validSegments.map { seg ->
+        // 1.12x punch-in zoom for dynamic 2-camera talking-head pacing
+        val zoomEffect = ScaleAndRotateTransformation.Builder()
+            .setScale(1.12f, 1.12f)
+            .build()
+        val zoomEffects = Effects(emptyList(), listOf(zoomEffect))
+
+        val editedMediaItems = validSegments.mapIndexed { index, seg ->
             val clipping = MediaItem.ClippingConfiguration.Builder()
                 .setStartPositionMs(seg.startMs)
                 .setEndPositionMs(seg.endMs)
@@ -60,10 +69,16 @@ object VideoSplicer {
                 .setClippingConfiguration(clipping)
                 .build()
 
-            EditedMediaItem.Builder(mediaItem)
+            val builder = EditedMediaItem.Builder(mediaItem)
                 .setRemoveVideo(extractAudioOnly)
                 .setFlattenForSlowMotion(false)
-                .build()
+
+            // Alternate punch-in zoom on every odd speech cut
+            if (!extractAudioOnly && autoZoomJumpcuts && (index % 2 == 1)) {
+                builder.setEffects(zoomEffects)
+            }
+
+            builder.build()
         }
 
         val composition = Composition.Builder(
