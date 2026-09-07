@@ -30,6 +30,7 @@ fun SettingsScreen(
     onClearCache: () -> Unit,
     isProUser: Boolean,
     onOpenPro: () -> Unit,
+    onReplayIntro: () -> Unit
 ) {
     val context = LocalContext.current
     val appVersion = remember(context) {
