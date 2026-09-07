@@ -26,6 +26,9 @@ import com.cancellls.jumpcut.theme.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProPaywallSheet(
+    lifetimePrice: String = "$29.99",
+    monthlyPrice: String = "$4.99",
+    quotaReason: String? = null,
     onDismiss: () -> Unit,
     onPurchasePlan: (String) -> Unit,
     onRestorePurchases: () -> Unit
@@ -71,6 +74,27 @@ fun ProPaywallSheet(
 
             Spacer(modifier = Modifier.height(6.dp))
 
+            if (quotaReason != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SilenceRed.copy(alpha = 0.15f))
+                        .border(1.dp, SilenceRed.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                        .padding(10.dp)
+                ) {
+                    Text(
+                        text = quotaReason,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SilenceRed,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+
             Text(
                 text = "Remove silence, boost speech, and export studio-quality videos with zero restrictions.",
                 fontSize = 13.sp,
@@ -84,9 +108,9 @@ fun ProPaywallSheet(
             // Feature Checklist
             ProFeatureRow(icon = Icons.Default.Bolt, title = "Unlimited 4K 60FPS Exports")
             Spacer(modifier = Modifier.height(10.dp))
-            ProFeatureRow(icon = Icons.Default.GraphicEq, title = "AI Background Noise & Echo Remover")
+            ProFeatureRow(icon = Icons.Default.GraphicEq, title = "Room Tone Micro-Crossfade Engine")
             Spacer(modifier = Modifier.height(10.dp))
-            ProFeatureRow(icon = Icons.Default.Block, title = "100% Watermark-Free Videos")
+            ProFeatureRow(icon = Icons.Default.Block, title = "100% Ad-Free Experience")
             Spacer(modifier = Modifier.height(10.dp))
             ProFeatureRow(icon = Icons.Default.Tune, title = "Custom Voice Padding & Decibel Presets")
 
@@ -100,7 +124,7 @@ fun ProPaywallSheet(
                 // Plan 1: Lifetime (Featured)
                 PlanCard(
                     title = "Lifetime Access",
-                    price = "$29.99",
+                    price = lifetimePrice,
                     period = "Pay once, own forever",
                     badge = "BEST VALUE",
                     isSelected = selectedPlan == "lifetime",
@@ -113,7 +137,7 @@ fun ProPaywallSheet(
                 // Plan 2: Monthly
                 PlanCard(
                     title = "Monthly Pro",
-                    price = "$4.99",
+                    price = monthlyPrice,
                     period = "Billed monthly",
                     badge = null,
                     isSelected = selectedPlan == "monthly",
@@ -152,7 +176,7 @@ fun ProPaywallSheet(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (selectedPlan == "lifetime") "Unlock Lifetime Pro ($29.99)" else "Subscribe Monthly ($4.99)",
+                        text = if (selectedPlan == "lifetime") "Unlock Lifetime Pro ($lifetimePrice)" else "Subscribe Monthly ($monthlyPrice)",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = BgDark

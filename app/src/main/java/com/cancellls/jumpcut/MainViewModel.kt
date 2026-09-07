@@ -8,6 +8,7 @@ import android.provider.OpenableColumns
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.cancellls.jumpcut.billing.UsageQuotaManager
 import com.cancellls.jumpcut.engine.AudioAnalysisResult
 import com.cancellls.jumpcut.engine.AudioExtractor
 import com.cancellls.jumpcut.engine.EdlExporter
@@ -67,11 +68,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isProUser = MutableStateFlow(false)
     val isProUser: StateFlow<Boolean> = _isProUser.asStateFlow()
 
+    val remainingExports: StateFlow<Int> = UsageQuotaManager.remainingExports
+
     private val _cacheSize = MutableStateFlow("0 MB")
     val cacheSize: StateFlow<String> = _cacheSize.asStateFlow()
 
     init {
         refreshCacheSize()
+        UsageQuotaManager.refreshQuota(context, _isProUser.value)
     }
 
     fun refreshCacheSize() {
@@ -286,6 +290,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun unlockPro() {
         _isProUser.value = true
+        UsageQuotaManager.refreshQuota(context, true)
     }
 
     fun exportSplicedMedia(config: ExportConfig = _exportConfig.value) {
@@ -295,6 +300,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         if (keptSegments.isEmpty()) {
             _processingState.value = ProcessingState.Error("No content selected to export")
+            return
+        }
+
+        // Check Free Tier Daily Quota (Limit: 2 exports per calendar day)
+        if (!UsageQuotaManager.canExport(context, _isProUser.value)) {
+            _processingState.value = ProcessingState.Error(
+                "Daily Free Export Limit Reached (2/2 exports used today). Upgrade to JumpCut Pro for unlimited 4K 60FPS exports!"
+            )
             return
         }
 
@@ -327,6 +340,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         }
                         is SplicerProgress.Success -> {
                             val isVideoOutput = !isAudioOnly
+
+                            // Record daily quota consumption for free users
+                            UsageQuotaManager.recordExport(context, _isProUser.value)
 
                             if (config.saveToGallery) {
                                 MediaSaver.saveToGallery(context, progress.outputFile, isVideoOutput)

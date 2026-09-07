@@ -29,6 +29,9 @@ fun ExportBottomSheet(
     originalDurationMs: Long,
     cutDurationMs: Long,
     savedPercent: Int,
+    isProUser: Boolean = false,
+    remainingExports: Int = 2,
+    onOpenPro: () -> Unit = {},
     onDismiss: () -> Unit,
     onConfirmExport: (ExportConfig) -> Unit,
     onExportEdl: ((Boolean) -> Unit)? = null
@@ -385,39 +388,73 @@ fun ExportBottomSheet(
             Spacer(modifier = Modifier.height(24.dp))
 
             // Start Export Button
-            Button(
-                onClick = {
-                    onConfirmExport(
-                        ExportConfig(
-                            extractAudioOnly = extractAudioOnly,
-                            saveToGallery = saveToGallery,
-                            autoZoomJumpcuts = autoZoomJumpcuts,
-                            microCrossfade = microCrossfade
-                        )
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                contentPadding = PaddingValues()
-            ) {
-                Box(
+            if (!isProUser && remainingExports <= 0) {
+                Button(
+                    onClick = {
+                        onDismiss()
+                        onOpenPro()
+                    },
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(Brush.horizontalGradient(listOf(PrimaryCyan, ElectricBlue))),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    contentPadding = PaddingValues()
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Bolt, contentDescription = null, tint = BgDark)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Start Render & Export",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = BgDark
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Brush.horizontalGradient(listOf(SilenceRed, PrimaryCyan))),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Lock, contentDescription = null, tint = TextPrimary)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Daily Limit Reached (2/2 Used) • Get Pro",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
+                    }
+                }
+            } else {
+                Button(
+                    onClick = {
+                        onConfirmExport(
+                            ExportConfig(
+                                extractAudioOnly = extractAudioOnly,
+                                saveToGallery = saveToGallery,
+                                autoZoomJumpcuts = autoZoomJumpcuts,
+                                microCrossfade = microCrossfade
+                            )
                         )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    contentPadding = PaddingValues()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Brush.horizontalGradient(listOf(PrimaryCyan, ElectricBlue))),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Bolt, contentDescription = null, tint = BgDark)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isProUser) "Start Render & Splice (Unlimited Pro)"
+                                       else "Start Render ($remainingExports of 2 free left today)",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BgDark
+                            )
+                        }
                     }
                 }
             }

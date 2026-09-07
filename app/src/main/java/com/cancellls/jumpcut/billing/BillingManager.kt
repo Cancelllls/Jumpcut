@@ -23,8 +23,13 @@ class BillingManager(
 
     private val scope = CoroutineScope(Dispatchers.IO)
 
+    private val prefs = context.getSharedPreferences("jumpcut_billing_prefs", Context.MODE_PRIVATE)
+
     private val _isPro = MutableStateFlow(false)
     val isPro: StateFlow<Boolean> = _isPro.asStateFlow()
+
+    private val _pricing = MutableStateFlow(ProPricing())
+    val pricing: StateFlow<ProPricing> = _pricing.asStateFlow()
 
     private val _productDetailsMap = MutableStateFlow<Map<String, ProductDetails>>(emptyMap())
     val productDetailsMap: StateFlow<Map<String, ProductDetails>> = _productDetailsMap.asStateFlow()
@@ -40,6 +45,10 @@ class BillingManager(
     }
 
     init {
+        _isPro.value = prefs.getBoolean("is_pro_user", false)
+        if (_isPro.value) {
+            onProUnlocked()
+        }
         initBillingClient()
     }
 
@@ -99,6 +108,11 @@ class BillingManager(
                     val currentMap = _productDetailsMap.value.toMutableMap()
                     productDetailsList.forEach { details ->
                         currentMap[details.productId] = details
+                        val formattedPrice = details.oneTimePurchaseOfferDetails?.formattedPrice
+                        if (!formattedPrice.isNullOrBlank()) {
+                            _pricing.value = _pricing.value.copy(lifetimePrice = formattedPrice)
+                            Log.d(TAG, "Loaded dynamic Lifetime price from Google Play: $formattedPrice")
+                        }
                     }
                     _productDetailsMap.value = currentMap
                 }
@@ -120,6 +134,12 @@ class BillingManager(
                     val currentMap = _productDetailsMap.value.toMutableMap()
                     productDetailsList.forEach { details ->
                         currentMap[details.productId] = details
+                        val formattedPrice = details.subscriptionOfferDetails?.firstOrNull()
+                            ?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice
+                        if (!formattedPrice.isNullOrBlank()) {
+                            _pricing.value = _pricing.value.copy(monthlyPrice = formattedPrice)
+                            Log.d(TAG, "Loaded dynamic Monthly price from Google Play: $formattedPrice")
+                        }
                     }
                     _productDetailsMap.value = currentMap
                 }
@@ -131,15 +151,37 @@ class BillingManager(
         val client = billingClient ?: return
         if (!client.isReady) return
 
+        var hasActiveInApp = false
+        var hasActiveSubs = false
+        var inAppDone = false
+        var subsDone = false
+
+        fun evaluatePurchases() {
+            if (inAppDone && subsDone) {
+                if (!hasActiveInApp && !hasActiveSubs) {
+                    val wasSandbox = prefs.getBoolean("is_sandbox_pro", false)
+                    if (!wasSandbox && _isPro.value) {
+                        Log.d(TAG, "Google Play verified 0 active purchases. Revoking Pro access.")
+                        saveProState(false)
+                    }
+                }
+            }
+        }
+
         // 1. Query INAPP purchases (Lifetime Pro)
         client.queryPurchasesAsync(
             QueryPurchasesParams.newBuilder()
                 .setProductType(BillingClient.ProductType.INAPP)
                 .build()
         ) { result, purchases ->
+            inAppDone = true
             if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                if (purchases.any { it.purchaseState == Purchase.PurchaseState.PURCHASED }) {
+                    hasActiveInApp = true
+                }
                 processPurchases(purchases)
             }
+            evaluatePurchases()
         }
 
         // 2. Query SUBS purchases (Monthly Pro)
@@ -148,9 +190,14 @@ class BillingManager(
                 .setProductType(BillingClient.ProductType.SUBS)
                 .build()
         ) { result, purchases ->
+            subsDone = true
             if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                if (purchases.any { it.purchaseState == Purchase.PurchaseState.PURCHASED }) {
+                    hasActiveSubs = true
+                }
                 processPurchases(purchases)
             }
+            evaluatePurchases()
         }
     }
 
@@ -174,10 +221,10 @@ class BillingManager(
                     if (hasProProduct) {
                         if (!purchase.isAcknowledged) {
                             acknowledgePurchase(purchase)
-                        }
-                        withContext(Dispatchers.Main) {
-                            _isPro.value = true
-                            onProUnlocked()
+                        } else {
+                            withContext(Dispatchers.Main) {
+                                saveProState(true, purchase.purchaseToken)
+                            }
                         }
                     }
                 }
@@ -193,8 +240,26 @@ class BillingManager(
 
         client.acknowledgePurchase(params) { result ->
             if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-                Log.d(TAG, "Purchase successfully acknowledged with Google Play")
+                Log.d(TAG, "Purchase successfully verified & acknowledged with Google Play servers")
+                scope.launch(Dispatchers.Main) {
+                    saveProState(true, purchase.purchaseToken)
+                }
+            } else {
+                Log.w(TAG, "Purchase acknowledgment error: ${result.debugMessage}")
             }
+        }
+    }
+
+    private fun saveProState(isPro: Boolean, token: String? = null, isSandbox: Boolean = false) {
+        _isPro.value = isPro
+        prefs.edit()
+            .putBoolean("is_pro_user", isPro)
+            .putBoolean("is_sandbox_pro", isSandbox)
+            .putString("verified_purchase_token", token)
+            .putLong("verified_timestamp", System.currentTimeMillis())
+            .apply()
+        if (isPro) {
+            onProUnlocked()
         }
     }
 
@@ -236,8 +301,7 @@ class BillingManager(
 
         // Sandbox / Local fallback for development testing without live Play Console store listing
         Log.d(TAG, "Sandbox mode: Unlocking Pro locally for development testing")
-        _isPro.value = true
-        onProUnlocked()
+        saveProState(true, "sandbox_token_${System.currentTimeMillis()}", isSandbox = true)
     }
 
     fun restorePurchases() {
@@ -249,3 +313,8 @@ class BillingManager(
         billingClient = null
     }
 }
+
+data class ProPricing(
+    val lifetimePrice: String = "$29.99",
+    val monthlyPrice: String = "$4.99"
+)

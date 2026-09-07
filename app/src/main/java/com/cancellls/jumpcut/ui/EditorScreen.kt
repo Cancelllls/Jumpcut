@@ -62,6 +62,8 @@ fun EditorScreen(
     exportConfig: ExportConfig,
     creatorPresets: List<CreatorPreset> = emptyList(),
     isProUser: Boolean = false,
+    remainingExports: Int = 2,
+    onOpenPro: () -> Unit = {},
     onSettingsChanged: (CutSettings) -> Unit,
     onToggleSkipSilence: (Boolean) -> Unit,
     onToggleSegment: (Int) -> Unit,
@@ -724,7 +726,11 @@ fun EditorScreen(
                 Button(
                     onClick = {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        showExportSheet = true
+                        if (!isProUser && remainingExports <= 0) {
+                            onOpenPro()
+                        } else {
+                            showExportSheet = true
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -736,17 +742,25 @@ fun EditorScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Brush.horizontalGradient(listOf(PrimaryCyan, ElectricBlue))),
+                            .background(
+                                if (!isProUser && remainingExports <= 0) Brush.horizontalGradient(listOf(SilenceRed, PrimaryCyan))
+                                else Brush.horizontalGradient(listOf(PrimaryCyan, ElectricBlue))
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.ContentCut, contentDescription = "Export", tint = BgDark)
+                            Icon(
+                                imageVector = if (!isProUser && remainingExports <= 0) Icons.Default.Lock else Icons.Default.ContentCut,
+                                contentDescription = "Export",
+                                tint = if (!isProUser && remainingExports <= 0) TextPrimary else BgDark
+                            )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "Export Clean Media (${formatTime(cutDurationMs)})",
-                                fontSize = 16.sp,
+                                text = if (!isProUser && remainingExports <= 0) "Daily Limit Reached (2/2 Used) • Get Pro"
+                                       else "Export Clean Media (${formatTime(cutDurationMs)})",
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = BgDark
+                                color = if (!isProUser && remainingExports <= 0) TextPrimary else BgDark
                             )
                         }
                     }
@@ -762,6 +776,9 @@ fun EditorScreen(
             originalDurationMs = originalDurationMs,
             cutDurationMs = cutDurationMs,
             savedPercent = savedPercent,
+            isProUser = isProUser,
+            remainingExports = remainingExports,
+            onOpenPro = onOpenPro,
             onDismiss = { showExportSheet = false },
             onConfirmExport = { config ->
                 showExportSheet = false

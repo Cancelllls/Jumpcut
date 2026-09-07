@@ -75,8 +75,12 @@ class MainActivity : ComponentActivity() {
                 val savedProjects by viewModel.savedProjects.collectAsState()
                 val creatorPresets by viewModel.creatorPresets.collectAsState()
                 val cacheSize by viewModel.cacheSize.collectAsState()
+                val remainingExports by viewModel.remainingExports.collectAsState()
+                val pricing by billingManager.pricing.collectAsState()
+                val isAdBlockerDetected by AdManager.isAdBlockerDetected.collectAsState()
 
                 var showProPaywall by remember { mutableStateOf(false) }
+                var proPaywallReason by remember { mutableStateOf<String?>(null) }
 
                 // Keep screen on during heavy operations (analyzing and export) so OS doesn't sleep and abort
                 DisposableEffect(processingState) {
@@ -109,6 +113,9 @@ class MainActivity : ComponentActivity() {
                                     savedProjects = savedProjects,
                                     cacheSize = cacheSize,
                                     creatorPresets = creatorPresets,
+                                    remainingExports = remainingExports,
+                                    isAdBlockerDetected = isAdBlockerDetected,
+                                    onDismissAdBlockerNotice = { AdManager.dismissAdBlockerNotice() },
                                     onMediaSelected = { uri -> viewModel.selectMedia(uri) },
                                     onDownloadUrl = { url -> viewModel.downloadFromUrl(url) },
                                     onApplyPreset = { preset -> viewModel.updateSettings(preset) },
@@ -116,7 +123,10 @@ class MainActivity : ComponentActivity() {
                                     onExportProjectEdl = { project, asXml -> viewModel.exportProjectEdl(this@MainActivity, project, asXml) },
                                     onDeleteProject = { id -> viewModel.deleteProject(id) },
                                     onClearCache = { viewModel.clearCache() },
-                                    onOpenPro = { showProPaywall = true },
+                                    onOpenPro = {
+                                        proPaywallReason = null
+                                        showProPaywall = true
+                                    },
                                     onReplayIntro = { showIntroModal = true },
                                     isProUser = isProUser
                                 )
@@ -165,6 +175,11 @@ class MainActivity : ComponentActivity() {
                                     exportConfig = exportConfig,
                                     creatorPresets = creatorPresets,
                                     isProUser = isProUser,
+                                    remainingExports = remainingExports,
+                                    onOpenPro = {
+                                        proPaywallReason = if (remainingExports <= 0) "Daily Free Export Limit Reached (2/2 used today). Upgrade to JumpCut Pro for unlimited 4K 60FPS exports!" else null
+                                        showProPaywall = true
+                                    },
                                     onSettingsChanged = { viewModel.updateSettings(it) },
                                     onToggleSkipSilence = { viewModel.toggleSkipSilencePreview(it) },
                                     onToggleSegment = { segId -> viewModel.toggleSegment(segId) },
@@ -207,7 +222,13 @@ class MainActivity : ComponentActivity() {
 
                 if (showProPaywall) {
                     ProPaywallSheet(
-                        onDismiss = { showProPaywall = false },
+                        lifetimePrice = pricing.lifetimePrice,
+                        monthlyPrice = pricing.monthlyPrice,
+                        quotaReason = proPaywallReason,
+                        onDismiss = {
+                            showProPaywall = false
+                            proPaywallReason = null
+                        },
                         onPurchasePlan = { plan ->
                             billingManager.launchPurchaseFlow(this@MainActivity, plan)
                         },

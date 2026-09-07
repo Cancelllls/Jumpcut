@@ -19,6 +19,25 @@ import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.cancellls.jumpcut.theme.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
 /**
  * Enterprise Google Mobile Ads (AdMob) integration manager for JumpCut.
  * Uses official Google sample/test unit IDs in development to prevent policy violations.
@@ -33,6 +52,30 @@ object AdManager {
     private var interstitialAd: InterstitialAd? = null
     private var isAdLoading = false
     private var isInitialized = false
+
+    private val _isAdBlockerDetected = MutableStateFlow(false)
+    val isAdBlockerDetected: StateFlow<Boolean> = _isAdBlockerDetected.asStateFlow()
+
+    fun dismissAdBlockerNotice() {
+        _isAdBlockerDetected.value = false
+    }
+
+    fun checkAdBlocker(context: Context, error: LoadAdError) {
+        try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+            val network = cm.activeNetwork ?: return
+            val caps = cm.getNetworkCapabilities(network) ?: return
+            val isOnline = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+
+            // If online but ad requests fail with network/internal error, it's indicative of ad-blocking DNS
+            if (isOnline && (error.code == AdRequest.ERROR_CODE_NETWORK_ERROR || error.code == AdRequest.ERROR_CODE_INTERNAL_ERROR)) {
+                Log.w(TAG, "Ad request dropped with active internet: Ad-blocker detected (${error.message})")
+                _isAdBlockerDetected.value = true
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error checking ad-blocker condition", e)
+        }
+    }
 
     fun initialize(context: Context) {
         if (isInitialized) return
@@ -68,6 +111,7 @@ object AdManager {
                     interstitialAd = null
                     isAdLoading = false
                     Log.d(TAG, "Interstitial ad failed to load: ${error.message}")
+                    checkAdBlocker(context, error)
                 }
             }
         )
@@ -128,6 +172,11 @@ fun BannerAdComposable(
             AdView(context).apply {
                 setAdSize(AdSize.BANNER)
                 adUnitId = AdManager.TEST_BANNER_AD_UNIT_ID
+                adListener = object : com.google.android.gms.ads.AdListener() {
+                    override fun onAdFailedToLoad(error: LoadAdError) {
+                        AdManager.checkAdBlocker(context, error)
+                    }
+                }
                 try {
                     loadAd(AdRequest.Builder().build())
                 } catch (e: Exception) {
@@ -136,4 +185,79 @@ fun BannerAdComposable(
             }
         }
     )
+}
+
+/**
+ * Strategy D: Gentle creator-friendly Ad-Blocker awareness notice.
+ */
+@Composable
+fun AdBlockerNoticeCard(
+    onUpgradePro: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceDark)
+            .border(1.dp, SilenceRed.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+            .padding(14.dp)
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Shield,
+                    contentDescription = "Shield",
+                    tint = SilenceRed,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Ad-Blocker Active",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(22.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Dismiss",
+                        tint = TextSecondary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = "JumpCut is a 100% free tool supported by lightweight ads. Please whitelist JumpCut or upgrade to Pro for an ad-free experience with unlimited exports.",
+                fontSize = 11.sp,
+                color = TextSecondary
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Button(
+                onClick = onUpgradePro,
+                modifier = Modifier.fillMaxWidth().height(36.dp),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Text(
+                    text = "Upgrade to Pro (Ad-Free & Unlimited)",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = BgDark
+                )
+            }
+        }
+    }
 }

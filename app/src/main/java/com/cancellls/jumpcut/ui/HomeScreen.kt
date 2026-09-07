@@ -38,6 +38,9 @@ fun HomeScreen(
     savedProjects: List<SavedProject>,
     cacheSize: String,
     creatorPresets: List<CreatorPreset> = emptyList(),
+    remainingExports: Int = 2,
+    isAdBlockerDetected: Boolean = false,
+    onDismissAdBlockerNotice: () -> Unit = {},
     onMediaSelected: (Uri) -> Unit,
     onDownloadUrl: (String) -> Unit,
     onApplyPreset: (CutSettings) -> Unit,
@@ -139,6 +142,9 @@ fun HomeScreen(
             when (selectedTab) {
                 0 -> CutterStudioContent(
                     creatorPresets = creatorPresets,
+                    remainingExports = remainingExports,
+                    isAdBlockerDetected = isAdBlockerDetected,
+                    onDismissAdBlockerNotice = onDismissAdBlockerNotice,
                     onMediaSelected = onMediaSelected,
                     onDownloadUrl = onDownloadUrl,
                     onApplyPreset = onApplyPreset,
@@ -167,6 +173,9 @@ fun HomeScreen(
 @Composable
 fun CutterStudioContent(
     creatorPresets: List<CreatorPreset> = emptyList(),
+    remainingExports: Int = 2,
+    isAdBlockerDetected: Boolean = false,
+    onDismissAdBlockerNotice: () -> Unit = {},
     onMediaSelected: (Uri) -> Unit,
     onDownloadUrl: (String) -> Unit,
     onApplyPreset: (CutSettings) -> Unit,
@@ -306,7 +315,44 @@ fun CutterStudioContent(
             modifier = Modifier.padding(horizontal = 16.dp)
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Strategy D: Ad-Blocker Awareness Notice
+        if (isAdBlockerDetected && !isProUser) {
+            com.cancellls.jumpcut.ads.AdBlockerNoticeCard(
+                onUpgradePro = onOpenPro,
+                onDismiss = onDismissAdBlockerNotice
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+        }
+
+        // Free Tier Daily Export Limit Pill (2/2 exports per day)
+        if (!isProUser) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(if (remainingExports > 0) SurfaceDark else SilenceRed.copy(alpha = 0.2f))
+                    .border(1.dp, if (remainingExports > 0) CardBorder else SilenceRed, RoundedCornerShape(20.dp))
+                    .clickable { if (remainingExports <= 0) onOpenPro() }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = if (remainingExports > 0) Icons.Default.Bolt else Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = if (remainingExports > 0) PrimaryCyan else SilenceRed,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (remainingExports > 0) "$remainingExports of 2 Free Daily Exports Left" else "Daily Quota Reached (2/2) • Upgrade to Pro",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (remainingExports > 0) TextSecondary else SilenceRed
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
         // Big Main Pick Video Card
         Box(
