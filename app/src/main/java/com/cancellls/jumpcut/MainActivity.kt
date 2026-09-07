@@ -40,9 +40,11 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         AdManager.initialize(this)
-        billingManager = BillingManager(this) {
-            viewModel.unlockPro()
-        }
+        billingManager = BillingManager(
+            context = this,
+            onProUnlocked = { viewModel.unlockPro() },
+            onProRevoked = { viewModel.revokePro() }
+        )
 
         // Handle incoming media or links
         handleIncomingIntent(intent)
@@ -216,11 +218,11 @@ class MainActivity : ComponentActivity() {
                             showProPaywall = false
                             proPaywallReason = null
                         },
-                        onPurchasePlan = { plan ->
-                            billingManager.launchPurchaseFlow(this@MainActivity, plan)
+                        onPurchasePlan = { plan, onError ->
+                            billingManager.launchPurchaseFlow(this@MainActivity, plan, onError)
                         },
-                        onRestorePurchases = {
-                            billingManager.restorePurchases()
+                        onRestorePurchases = { onResult ->
+                            billingManager.restorePurchases(onResult)
                         }
                     )
                 }

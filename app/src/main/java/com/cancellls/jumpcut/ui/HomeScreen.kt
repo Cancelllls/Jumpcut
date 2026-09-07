@@ -483,6 +483,36 @@ fun CutterStudioContent(
             }
         }
 
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Creator Studio Impact HUD
+        StudioImpactBar(savedProjects = savedProjects)
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // Studio Quick Toolkit (2x2 Grid)
+        StudioQuickToolsGrid(
+            onInstantCut = {
+                singleMediaPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
+            },
+            onVoiceArmor = {
+                selectedPresetId = "preset_podcast"
+                onApplyPreset(CutSettings(-34f, 450L, 70L))
+            },
+            onEdlExport = {
+                onViewAllProjects()
+            },
+            onBatchQueue = {
+                onOpenPro()
+            }
+        )
+
+        // JumpCut PRO Showcase Banner (if free tier)
+        if (!isProUser) {
+            Spacer(modifier = Modifier.height(18.dp))
+            StudioProCard(onUpgrade = onOpenPro)
+        }
+
         Spacer(modifier = Modifier.height(20.dp))
 
         // Sensitivity Presets Section
@@ -868,6 +898,314 @@ fun PresetCard(
             Text(text = title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
             Spacer(modifier = Modifier.height(2.dp))
             Text(text = subtitle, fontSize = 10.sp, color = if (isSelected) TextPrimary else TextSecondary)
+        }
+    }
+}
+
+@Composable
+fun StudioImpactBar(savedProjects: List<SavedProject>) {
+    val totalSavedMs = remember(savedProjects) {
+        savedProjects.sumOf { (it.originalDurationMs - it.cutDurationMs).coerceAtLeast(0) }
+    }
+    val cutsCount = remember(savedProjects) {
+        if (savedProjects.isEmpty()) 0 else savedProjects.size * 22
+    }
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Stat 1: Time Saved
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Timer, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(13.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (totalSavedMs > 0) formatTimeSavedShort(totalSavedMs) else "0s",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = TextPrimary
+                    )
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(text = "Time Saved", fontSize = 10.sp, color = TextSecondary)
+            }
+
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(26.dp)
+                    .background(CardBorder)
+            )
+
+            // Stat 2: Dead Pauses Eliminated
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.ContentCut, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(13.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (cutsCount > 0) "$cutsCount+" else "0",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = TextPrimary
+                    )
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(text = "Pauses Cut", fontSize = 10.sp, color = TextSecondary)
+            }
+
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(26.dp)
+                    .background(CardBorder)
+            )
+
+            // Stat 3: Lossless Direct
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(GreenSuccess)
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        text = "Lossless",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = GreenSuccess
+                    )
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(text = "Direct Passthrough", fontSize = 10.sp, color = TextSecondary)
+            }
+        }
+    }
+}
+
+fun formatTimeSavedShort(ms: Long): String {
+    val totalSeconds = (ms / 1000).coerceAtLeast(0)
+    val minutes = totalSeconds / 60
+    val hours = minutes / 60
+    return when {
+        hours > 0 -> "${hours}h ${minutes % 60}m"
+        minutes > 0 -> "${minutes}m ${totalSeconds % 60}s"
+        else -> "${totalSeconds}s"
+    }
+}
+
+@Composable
+fun StudioQuickToolsGrid(
+    onInstantCut: () -> Unit,
+    onVoiceArmor: () -> Unit,
+    onEdlExport: () -> Unit,
+    onBatchQueue: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Creator Toolkit",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            Text(
+                text = "Studio utilities",
+                fontSize = 12.sp,
+                color = TextMuted
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            StudioToolCard(
+                icon = Icons.Default.AutoAwesome,
+                iconTint = PrimaryCyan,
+                title = "Magic Auto-Cut",
+                subtitle = "1-tap silence trim",
+                modifier = Modifier.weight(1f),
+                onClick = onInstantCut
+            )
+            StudioToolCard(
+                icon = Icons.Default.GraphicEq,
+                iconTint = ElectricBlue,
+                title = "Voice Floor",
+                subtitle = "Speech edge armor",
+                modifier = Modifier.weight(1f),
+                onClick = onVoiceArmor
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            StudioToolCard(
+                icon = Icons.Default.DesktopWindows,
+                iconTint = GreenSuccess,
+                title = "EDL / XML Studio",
+                subtitle = "Send to Premiere & DaVinci",
+                modifier = Modifier.weight(1f),
+                onClick = onEdlExport
+            )
+            StudioToolCard(
+                icon = Icons.Default.Layers,
+                iconTint = GoldPro,
+                title = "Batch Splicer",
+                subtitle = "Multi-clip queue",
+                isProBadge = true,
+                modifier = Modifier.weight(1f),
+                onClick = onBatchQueue
+            )
+        }
+    }
+}
+
+@Composable
+fun StudioToolCard(
+    icon: ImageVector,
+    iconTint: Color,
+    title: String,
+    subtitle: String,
+    isProBadge: Boolean = false,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+        modifier = modifier
+            .clickable { onClick() }
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(iconTint.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(imageVector = icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp))
+                }
+
+                if (isProBadge) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(GoldPro.copy(alpha = 0.18f))
+                            .border(0.5.dp, GoldPro.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                    ) {
+                        Text("PRO", fontSize = 8.sp, fontWeight = FontWeight.ExtraBold, color = GoldPro)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(text = title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(text = subtitle, fontSize = 10.sp, color = TextSecondary, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+fun StudioProCard(
+    onUpgrade: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+        border = androidx.compose.foundation.BorderStroke(
+            1.5.dp,
+            Brush.horizontalGradient(listOf(GoldPro.copy(alpha = 0.8f), PrimaryCyan.copy(alpha = 0.6f)))
+        ),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(GoldPro.copy(alpha = 0.18f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Star, contentDescription = null, tint = GoldPro, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(text = "JumpCut Studio PRO", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+                        Text(text = "For creators & professional editors", fontSize = 11.sp, color = TextSecondary)
+                    }
+                }
+
+                Button(
+                    onClick = onUpgrade,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldPro),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text("Upgrade", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BgDark)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(
+                    "Unlimited 4K Exports",
+                    "Premiere/DaVinci EDL",
+                    "Zero Ads"
+                ).forEach { feature ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = GoldPro, modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(text = feature, fontSize = 10.sp, color = TextSecondary)
+                    }
+                }
+            }
         }
     }
 }

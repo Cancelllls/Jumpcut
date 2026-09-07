@@ -294,6 +294,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         UsageQuotaManager.refreshQuota(context, true)
     }
 
+    fun revokePro() {
+        _isProUser.value = false
+        UsageQuotaManager.refreshQuota(context, false)
+    }
+
     fun exportSplicedMedia(config: ExportConfig = _exportConfig.value) {
         val media = _selectedMedia.value ?: return
         val state = _processingState.value as? ProcessingState.Ready ?: return

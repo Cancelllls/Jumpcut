@@ -18,7 +18,8 @@ import kotlinx.coroutines.withContext
  */
 class BillingManager(
     private val context: Context,
-    private val onProUnlocked: () -> Unit
+    private val onProUnlocked: () -> Unit,
+    private val onProRevoked: (() -> Unit)? = null
 ) : PurchasesUpdatedListener {
 
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -45,9 +46,22 @@ class BillingManager(
     }
 
     init {
-        _isPro.value = prefs.getBoolean("is_pro_user", false)
-        if (_isPro.value) {
-            onProUnlocked()
+        // Enforce strict Google Play validation: revoke any unverified/sandbox pro states
+        val wasSandbox = prefs.getBoolean("is_sandbox_pro", false)
+        val token = prefs.getString("verified_purchase_token", null)
+        if (wasSandbox || token.isNullOrBlank() || token.startsWith("sandbox_")) {
+            prefs.edit()
+                .putBoolean("is_pro_user", false)
+                .putBoolean("is_sandbox_pro", false)
+                .remove("verified_purchase_token")
+                .apply()
+            _isPro.value = false
+            onProRevoked?.invoke()
+        } else {
+            _isPro.value = prefs.getBoolean("is_pro_user", false)
+            if (_isPro.value) {
+                onProUnlocked()
+            }
         }
         initBillingClient()
     }
@@ -250,62 +264,95 @@ class BillingManager(
         }
     }
 
-    private fun saveProState(isPro: Boolean, token: String? = null, isSandbox: Boolean = false) {
+    private fun saveProState(isPro: Boolean, token: String? = null) {
         _isPro.value = isPro
         prefs.edit()
             .putBoolean("is_pro_user", isPro)
-            .putBoolean("is_sandbox_pro", isSandbox)
+            .putBoolean("is_sandbox_pro", false)
             .putString("verified_purchase_token", token)
             .putLong("verified_timestamp", System.currentTimeMillis())
             .apply()
         if (isPro) {
             onProUnlocked()
+        } else {
+            onProRevoked?.invoke()
         }
     }
 
-    fun launchPurchaseFlow(activity: Activity, productId: String) {
+    fun launchPurchaseFlow(
+        activity: Activity,
+        productId: String,
+        onError: ((String) -> Unit)? = null
+    ) {
         val client = billingClient
-        val details = _productDetailsMap.value[productId]
+        if (client == null || !client.isReady) {
+            connectToPlayBilling()
+            val msg = "Connecting to Google Play Store... Please ensure Google Play Services are running and signed in."
+            Log.w(TAG, msg)
+            onError?.invoke(msg)
+            return
+        }
 
-        if (client != null && client.isReady && details != null) {
-            val productDetailsParamsList = when (details.productType) {
-                BillingClient.ProductType.INAPP -> {
+        val details = _productDetailsMap.value[productId]
+        if (details == null) {
+            val msg = "Google Play Notice: In-app product details for '$productId' are not yet active on Google Play Console. A live Google Play Store account is required."
+            Log.w(TAG, msg)
+            onError?.invoke(msg)
+            return
+        }
+
+        val productDetailsParamsList = when (details.productType) {
+            BillingClient.ProductType.INAPP -> {
+                listOf(
+                    BillingFlowParams.ProductDetailsParams.newBuilder()
+                        .setProductDetails(details)
+                        .build()
+                )
+            }
+            BillingClient.ProductType.SUBS -> {
+                val offerToken = details.subscriptionOfferDetails?.firstOrNull()?.offerToken
+                if (offerToken != null) {
                     listOf(
                         BillingFlowParams.ProductDetailsParams.newBuilder()
                             .setProductDetails(details)
+                            .setOfferToken(offerToken)
                             .build()
                     )
-                }
-                BillingClient.ProductType.SUBS -> {
-                    val offerToken = details.subscriptionOfferDetails?.firstOrNull()?.offerToken
-                    if (offerToken != null) {
-                        listOf(
-                            BillingFlowParams.ProductDetailsParams.newBuilder()
-                                .setProductDetails(details)
-                                .setOfferToken(offerToken)
-                                .build()
-                        )
-                    } else emptyList()
-                }
-                else -> emptyList()
+                } else emptyList()
             }
-
-            if (productDetailsParamsList.isNotEmpty()) {
-                val flowParams = BillingFlowParams.newBuilder()
-                    .setProductDetailsParamsList(productDetailsParamsList)
-                    .build()
-                client.launchBillingFlow(activity, flowParams)
-                return
-            }
+            else -> emptyList()
         }
 
-        // Sandbox / Local fallback for development testing without live Play Console store listing
-        Log.d(TAG, "Sandbox mode: Unlocking Pro locally for development testing")
-        saveProState(true, "sandbox_token_${System.currentTimeMillis()}", isSandbox = true)
+        if (productDetailsParamsList.isNotEmpty()) {
+            val flowParams = BillingFlowParams.newBuilder()
+                .setProductDetailsParamsList(productDetailsParamsList)
+                .build()
+            val billingResult = client.launchBillingFlow(activity, flowParams)
+            if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
+                val err = "Google Play launch error: ${billingResult.debugMessage}"
+                Log.w(TAG, err)
+                onError?.invoke(err)
+            }
+        } else {
+            val msg = "Selected subscription offer is currently unavailable on Google Play."
+            Log.w(TAG, msg)
+            onError?.invoke(msg)
+        }
     }
 
-    fun restorePurchases() {
+    fun restorePurchases(onResult: ((Boolean, String) -> Unit)? = null) {
+        val client = billingClient
+        if (client == null || !client.isReady) {
+            connectToPlayBilling()
+            onResult?.invoke(false, "Connecting to Google Play... Please try again in a moment.")
+            return
+        }
         queryUserPurchases()
+        val isVerified = _isPro.value
+        onResult?.invoke(
+            isVerified,
+            if (isVerified) "Active Pro license verified with Google Play!" else "No active Google Play purchases found for this account."
+        )
     }
 
     fun destroy() {

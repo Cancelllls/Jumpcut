@@ -30,10 +30,11 @@ fun ProPaywallSheet(
     monthlyPrice: String = "$4.99",
     quotaReason: String? = null,
     onDismiss: () -> Unit,
-    onPurchasePlan: (String) -> Unit,
-    onRestorePurchases: () -> Unit
+    onPurchasePlan: (String, (String) -> Unit) -> Unit,
+    onRestorePurchases: ((Boolean, String) -> Unit) -> Unit
 ) {
     var selectedPlan by remember { mutableStateOf("lifetime") } // "monthly" or "lifetime"
+    var statusMessage by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -148,14 +149,45 @@ fun ProPaywallSheet(
                 }
             }
 
+            // Inline Google Play Status or Notice Banner
+            statusMessage?.let { (isSuccess, message) ->
+                Spacer(modifier = Modifier.height(16.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isSuccess) GreenSuccess.copy(alpha = 0.15f) else SilenceRed.copy(alpha = 0.15f))
+                        .border(1.dp, if (isSuccess) GreenSuccess.copy(alpha = 0.4f) else SilenceRed.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                        .padding(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (isSuccess) Icons.Default.CheckCircle else Icons.Default.Info,
+                            contentDescription = null,
+                            tint = if (isSuccess) GreenSuccess else SilenceRed,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = message,
+                            fontSize = 12.sp,
+                            color = if (isSuccess) GreenSuccess else TextPrimary,
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // Purchase Button
             Button(
                 onClick = {
+                    statusMessage = null
                     val productId = if (selectedPlan == "lifetime") BillingManager.PRODUCT_LIFETIME else BillingManager.PRODUCT_MONTHLY
-                    onPurchasePlan(productId)
-                    onDismiss()
+                    onPurchasePlan(productId) { error ->
+                        statusMessage = false to error
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -192,8 +224,10 @@ fun ProPaywallSheet(
                 horizontalArrangement = Arrangement.Center
             ) {
                 TextButton(onClick = {
-                    onRestorePurchases()
-                    onDismiss()
+                    statusMessage = null
+                    onRestorePurchases { isSuccess, msg ->
+                        statusMessage = isSuccess to msg
+                    }
                 }) {
                     Text(text = "Restore Purchase", fontSize = 12.sp, color = TextSecondary)
                 }
