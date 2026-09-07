@@ -96,9 +96,9 @@ fun WaveformView(
             val totalSpacing = barSpacing * (barCount - 1)
             val barWidth = ((canvasWidth - totalSpacing) / barCount).coerceAtLeast(1.5f)
 
-            // Draw Background Silence Region Stripes
+            // Draw Background Cut Region Stripes
             segments.forEach { seg ->
-                if (seg.isSilence) {
+                if (!seg.shouldKeep) {
                     val startX = (seg.startMs.toFloat() / totalDurationMs) * canvasWidth
                     val endX = (seg.endMs.toFloat() / totalDurationMs) * canvasWidth
                     val width = (endX - startX).coerceAtLeast(1f)
@@ -119,9 +119,10 @@ fun WaveformView(
 
                 // Timestamp corresponding to this bar
                 val barTimeMs = ((i.toFloat() / barCount) * totalDurationMs).toLong()
-                val isSilent = segments.any { it.isSilence && barTimeMs in it.startMs..it.endMs }
+                val currentSegment = segments.firstOrNull { barTimeMs in it.startMs..it.endMs }
+                val isCut = currentSegment != null && !currentSegment.shouldKeep
 
-                val barColor = if (isSilent) SilenceRed else SpeechCyan
+                val barColor = if (isCut) SilenceRed else SpeechCyan
 
                 drawRoundRect(
                     color = barColor,

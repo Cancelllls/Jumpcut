@@ -20,7 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -59,6 +61,21 @@ fun EditorScreen(
     onBackClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
+
+    val aspectRatioBadge = remember(media.width, media.height) {
+        if (!media.isVideo) "Audio Only"
+        else {
+            val ratio = media.width.toFloat() / media.height.toFloat().coerceAtLeast(1f)
+            when {
+                ratio < 0.65f -> "9:16 Shorts"
+                ratio > 1.5f -> "16:9 Landscape"
+                ratio in 0.9f..1.1f -> "1:1 Square"
+                else -> "${media.width}x${media.height}"
+            }
+        }
+    }
+
     var isPlaying by remember { mutableStateOf(false) }
     var currentPositionMs by remember { mutableLongStateOf(0L) }
     var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
@@ -213,6 +230,7 @@ fun EditorScreen(
                         .clip(CircleShape)
                         .background(CardDark.copy(alpha = 0.85f))
                         .clickable {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
                         },
                     contentAlignment = Alignment.Center
@@ -225,7 +243,7 @@ fun EditorScreen(
                     )
                 }
 
-                // Video Resolution Badge
+                // Video Resolution & Aspect Ratio Badge
                 if (media.isVideo) {
                     Box(
                         modifier = Modifier
@@ -236,7 +254,7 @@ fun EditorScreen(
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = "${media.width}x${media.height}",
+                            text = "${media.width}x${media.height} • $aspectRatioBadge",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
@@ -271,7 +289,10 @@ fun EditorScreen(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(if (isSelected) PrimaryCyan else CardDark)
-                                .clickable { playbackSpeed = speed }
+                                .clickable {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    playbackSpeed = speed
+                                }
                                 .padding(horizontal = 7.dp, vertical = 4.dp)
                         ) {
                             Text(
@@ -512,7 +533,10 @@ fun EditorScreen(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(if (isKept) GreenSuccess.copy(alpha = 0.2f) else SilenceRed.copy(alpha = 0.2f))
-                                        .clickable { onToggleSegment(seg.id) }
+                                        .clickable {
+                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            onToggleSegment(seg.id)
+                                        }
                                         .padding(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
                                     Text(
@@ -539,7 +563,10 @@ fun EditorScreen(
                 .padding(16.dp)
         ) {
             Button(
-                onClick = { showExportSheet = true },
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    showExportSheet = true
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(54.dp),

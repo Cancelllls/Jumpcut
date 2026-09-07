@@ -52,6 +52,15 @@ fun ProjectsScreen(
     var playingProject by remember { mutableStateOf<SavedProject?>(null) }
     var projectToDelete by remember { mutableStateOf<SavedProject?>(null) }
 
+    var searchQuery by remember { mutableStateOf("") }
+    val filteredProjects = remember(projects, searchQuery) {
+        if (searchQuery.isBlank()) projects
+        else projects.filter { it.title.contains(searchQuery, true) }
+    }
+
+    val totalSizeBytes = remember(projects) { projects.sumOf { it.fileSizeBytes } }
+    val totalSavedMs = remember(projects) { projects.sumOf { (it.originalDurationMs - it.cutDurationMs).coerceAtLeast(0) } }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -95,7 +104,65 @@ fun ProjectsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        if (projects.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Storage & Savings Summary Pill
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CardDark)
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Storage, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Total Storage: ${com.cancellls.jumpcut.storage.StorageManager.formatBytes(totalSizeBytes)}",
+                        fontSize = 11.sp,
+                        color = TextSecondary
+                    )
+                }
+                Text(
+                    text = "✂️ Saved ${formatTime(totalSavedMs)}",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = GreenSuccess
+                )
+            }
+
+            if (projects.size >= 2) {
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search projects...", color = TextMuted, fontSize = 12.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp)) },
+                    trailingIcon = {
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear", tint = TextMuted, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PrimaryCyan,
+                        unfocusedBorderColor = CardBorder,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        cursorColor = PrimaryCyan
+                    )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         if (projects.isEmpty()) {
             // Empty State
@@ -155,7 +222,7 @@ fun ProjectsScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 contentPadding = PaddingValues(bottom = 80.dp)
             ) {
-                items(projects, key = { it.id }) { project ->
+                items(filteredProjects, key = { it.id }) { project ->
                     ProjectCard(
                         project = project,
                         onPlay = { playingProject = project },
