@@ -142,8 +142,8 @@ fun ProPaywallSheet(
                         .fillMaxSize()
                         .background(
                             Brush.horizontalGradient(
-                                if (selectedPlan == "lifetime") listOf(GoldPro, NeonViolet)
-                                else listOf(PrimaryCyan, NeonViolet)
+                                if (selectedPlan == "lifetime") listOf(GoldPro, PrimaryCyan)
+                                else listOf(PrimaryCyan, ElectricBlue)
                             )
                         ),
                     contentAlignment = Alignment.Center
@@ -152,7 +152,7 @@ fun ProPaywallSheet(
                         text = if (selectedPlan == "lifetime") "Unlock Lifetime Pro ($29.99)" else "Subscribe Monthly ($4.99)",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (selectedPlan == "lifetime") BgDark else TextPrimary
+                        color = BgDark
                     )
                 }
             }

@@ -424,13 +424,13 @@ fun EditorScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(text = "Min Silence Length", fontSize = 13.sp, color = TextPrimary)
-                            Text(text = "${cutSettings.minSilenceDurationMs} ms", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = NeonViolet)
+                            Text(text = "${cutSettings.minSilenceDurationMs} ms", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ElectricBlue)
                         }
                         Slider(
                             value = cutSettings.minSilenceDurationMs.toFloat(),
                             onValueChange = { onSettingsChanged(cutSettings.copy(minSilenceDurationMs = it.toLong())) },
                             valueRange = 150f..800f,
-                            colors = SliderDefaults.colors(thumbColor = NeonViolet, activeTrackColor = NeonViolet)
+                            colors = SliderDefaults.colors(thumbColor = ElectricBlue, activeTrackColor = ElectricBlue)
                         )
 
                         Spacer(modifier = Modifier.height(10.dp))
@@ -550,17 +550,17 @@ fun EditorScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Brush.horizontalGradient(listOf(PrimaryCyan, NeonViolet))),
+                        .background(Brush.horizontalGradient(listOf(PrimaryCyan, ElectricBlue))),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.ContentCut, contentDescription = "Export", tint = TextPrimary)
+                        Icon(Icons.Default.ContentCut, contentDescription = "Export", tint = BgDark)
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
                             text = "Export Clean Media (${formatTime(cutDurationMs)})",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            color = BgDark
                         )
                     }
                 }

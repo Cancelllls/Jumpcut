@@ -182,7 +182,7 @@ fun ExportBottomSheet(
                         .background(if (extractAudioOnly) CardBorder.copy(alpha = 0.5f) else CardDark)
                         .border(
                             width = if (extractAudioOnly) 2.dp else 1.dp,
-                            color = if (extractAudioOnly) NeonViolet else CardBorder,
+                            color = if (extractAudioOnly) ElectricBlue else CardBorder,
                             shape = RoundedCornerShape(14.dp)
                         )
                         .clickable { extractAudioOnly = true }
@@ -193,7 +193,7 @@ fun ExportBottomSheet(
                         Icon(
                             imageVector = Icons.Default.Audiotrack,
                             contentDescription = null,
-                            tint = if (extractAudioOnly) NeonViolet else TextSecondary
+                            tint = if (extractAudioOnly) ElectricBlue else TextSecondary
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
@@ -281,17 +281,17 @@ fun ExportBottomSheet(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Brush.horizontalGradient(listOf(PrimaryCyan, NeonViolet))),
+                        .background(Brush.horizontalGradient(listOf(PrimaryCyan, ElectricBlue))),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Bolt, contentDescription = null, tint = TextPrimary)
+                        Icon(Icons.Default.Bolt, contentDescription = null, tint = BgDark)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Start Render & Export",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            color = BgDark
                         )
                     }
                 }

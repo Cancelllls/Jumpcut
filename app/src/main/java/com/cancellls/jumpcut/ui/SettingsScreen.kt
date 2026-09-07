@@ -64,7 +64,7 @@ fun SettingsScreen(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = SurfaceDark),
             border = CardDefaults.outlinedCardBorder().copy(
-                brush = Brush.horizontalGradient(if (isProUser) listOf(GoldPro, GoldPro) else listOf(PrimaryCyan, NeonViolet))
+                brush = Brush.horizontalGradient(if (isProUser) listOf(GoldPro, GoldPro) else listOf(PrimaryCyan, ElectricBlue))
             )
         ) {
             Row(

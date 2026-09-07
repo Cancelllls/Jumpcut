@@ -160,7 +160,7 @@ fun ExportScreen(
                     StatBox(
                         title = "File Size",
                         value = fileSizeMb,
-                        accent = NeonViolet,
+                        accent = ElectricBlue,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -233,13 +233,13 @@ fun ExportScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Brush.horizontalGradient(listOf(PrimaryCyan, NeonViolet))),
+                            .background(Brush.horizontalGradient(listOf(PrimaryCyan, ElectricBlue))),
                         contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Share, contentDescription = "Share", tint = TextPrimary)
+                            Icon(Icons.Default.Share, contentDescription = "Share", tint = BgDark)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Share to CapCut / TikTok / Gallery", fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Text("Share to CapCut / TikTok / Gallery", fontWeight = FontWeight.Bold, color = BgDark)
                         }
                     }
                 }

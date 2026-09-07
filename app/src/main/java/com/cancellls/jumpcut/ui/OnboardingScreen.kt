@@ -49,7 +49,7 @@ fun OnboardingScreen(
                 highlight = "Hardware Passthrough",
                 subtitle = "Splice 10-minute 4K 60FPS footage without re-encoding quality loss. Zero cloud uploads—your media stays strictly on your hardware.",
                 icon = Icons.Default.Bolt,
-                accentColor = NeonViolet
+                accentColor = ElectricBlue
             ),
             OnboardingSlide(
                 title = "Word Padding Armor",
@@ -225,7 +225,7 @@ fun OnboardingScreen(
                         .background(
                             Brush.horizontalGradient(
                                 if (currentIndex == slides.size - 1)
-                                    listOf(PrimaryCyan, NeonViolet)
+                                    listOf(PrimaryCyan, ElectricBlue)
                                 else
                                     listOf(CardDark, CardDark)
                             )
@@ -236,7 +236,7 @@ fun OnboardingScreen(
                         text = if (currentIndex == slides.size - 1) "Get Started • Cut First Video" else "Continue",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = if (currentIndex == slides.size - 1) BgDark else TextPrimary
                     )
                 }
             }

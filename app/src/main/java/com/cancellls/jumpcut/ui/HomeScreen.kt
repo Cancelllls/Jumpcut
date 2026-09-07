@@ -62,7 +62,7 @@ fun HomeScreen(
                             contentDescription = "Cutter"
                         )
                     },
-                    label = { Text("Cutter", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    label = { Text("Studio", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = PrimaryCyan,
                         selectedTextColor = PrimaryCyan,
@@ -80,7 +80,7 @@ fun HomeScreen(
                             badge = {
                                 if (savedProjects.isNotEmpty()) {
                                     Badge(containerColor = PrimaryCyan) {
-                                        Text("${savedProjects.size}", color = BgDark, fontSize = 10.sp)
+                                        Text("${savedProjects.size}", color = BgDark, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -192,28 +192,45 @@ fun CutterStudioContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(12.dp))
                         .background(
-                            Brush.linearGradient(listOf(PrimaryCyan, NeonViolet))
+                            Brush.linearGradient(listOf(PrimaryCyan, ElectricBlue))
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.ContentCut,
                         contentDescription = "Logo",
-                        tint = TextPrimary,
+                        tint = BgDark,
                         modifier = Modifier.size(24.dp)
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Text(
-                        text = "JumpCut AI",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "JumpCut",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(PrimaryCyan.copy(alpha = 0.15f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "STUDIO",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryCyan,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                    }
                     Text(
                         text = "Lossless Silence Cutter",
                         fontSize = 12.sp,
@@ -244,7 +261,7 @@ fun CutterStudioContent(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = if (isProUser) "PRO ACTIVE" else "GO PRO",
+                        text = if (isProUser) "PRO ACTIVE" else "PRO",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isProUser) BgDark else GoldPro
@@ -268,7 +285,7 @@ fun CutterStudioContent(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Automatically remove pauses, filler gaps, and dead air without re-encoding quality loss.",
+            text = "Automatically remove awkward pauses, breaths, and dead air without re-encoding quality loss.",
             fontSize = 13.sp,
             color = TextSecondary,
             textAlign = TextAlign.Center,
@@ -281,10 +298,14 @@ fun CutterStudioContent(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp)
+                .height(210.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(SurfaceDark)
-                .border(2.dp, Brush.linearGradient(listOf(PrimaryCyan, NeonViolet)), RoundedCornerShape(24.dp))
+                .border(
+                    2.dp,
+                    Brush.linearGradient(listOf(PrimaryCyan, ElectricBlue)),
+                    RoundedCornerShape(24.dp)
+                )
                 .clickable {
                     singleMediaPicker.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
@@ -298,39 +319,44 @@ fun CutterStudioContent(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(60.dp)
+                        .size(64.dp)
                         .clip(CircleShape)
-                        .background(CardDark),
+                        .background(CardDark)
+                        .border(1.dp, CardBorder, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.VideoCall,
                         contentDescription = "Pick Video",
                         tint = PrimaryCyan,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(34.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
                     text = "Select Video to Cut",
-                    fontSize = 17.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                Text(
-                    text = "Supports MP4, MOV, 4K, 60FPS",
-                    fontSize = 12.sp,
-                    color = TextSecondary
-                )
+                // Specs Pills
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SpecPill("4K UHD")
+                    SpecPill("60 FPS")
+                    SpecPill("LOSSLESS")
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -346,7 +372,7 @@ fun CutterStudioContent(
                     contentColor = TextPrimary
                 ),
                 border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder))),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 11.dp)
             ) {
                 Icon(Icons.Default.FolderOpen, contentDescription = "Files", tint = PrimaryCyan, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(6.dp))
@@ -363,9 +389,9 @@ fun CutterStudioContent(
                     contentColor = TextPrimary
                 ),
                 border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder))),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 11.dp)
             ) {
-                Icon(Icons.Default.Link, contentDescription = "Link", tint = NeonViolet, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Link, contentDescription = "Link", tint = ElectricBlue, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("From Link", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
@@ -404,7 +430,7 @@ fun CutterStudioContent(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Pre-calibrated for speech rhythm",
+                text = "Calibrated for speech rhythm",
                 fontSize = 12.sp,
                 color = TextMuted
             )
@@ -430,7 +456,7 @@ fun CutterStudioContent(
                 title = "Podcast",
                 subtitle = "Natural (-34dB)",
                 icon = Icons.Default.Podcasts,
-                accentColor = NeonViolet,
+                accentColor = ElectricBlue,
                 modifier = Modifier.weight(1f)
             ) {
                 onApplyPreset(CutSettings(silenceThresholdDb = -34f, minSilenceDurationMs = 450L, paddingMs = 70L))
@@ -461,7 +487,7 @@ fun CutterStudioContent(
         FeatureItem(
             icon = Icons.Default.Security,
             title = "100% On-Device & Private",
-            description = "Zero cloud uploads. Your videos never leave your hardware."
+            description = "Zero cloud uploads. Your media never leaves your phone hardware."
         )
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -469,7 +495,7 @@ fun CutterStudioContent(
         FeatureItem(
             icon = Icons.Default.VolumeOff,
             title = "Speech Padding Armor",
-            description = "Natural word endings and consonants are preserved smoothly."
+            description = "Natural sentence endings and consonants are preserved smoothly."
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -531,6 +557,25 @@ fun CutterStudioContent(
                     Text("Cancel", color = TextSecondary)
                 }
             }
+        )
+    }
+}
+
+@Composable
+fun SpecPill(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(CardDark)
+            .border(1.dp, CardBorder, RoundedCornerShape(6.dp))
+            .padding(horizontal = 7.dp, vertical = 3.dp)
+    ) {
+        Text(
+            text = text,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = PrimaryCyan,
+            letterSpacing = 0.5.sp
         )
     }
 }

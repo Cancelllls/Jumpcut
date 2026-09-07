@@ -277,7 +277,7 @@ fun ProjectCard(
                     Icon(
                         imageVector = if (project.isVideo) Icons.Default.Movie else Icons.Default.GraphicEq,
                         contentDescription = null,
-                        tint = if (project.isVideo) PrimaryCyan else NeonViolet,
+                        tint = if (project.isVideo) PrimaryCyan else ElectricBlue,
                         modifier = Modifier.size(32.dp)
                     )
                 }
@@ -466,7 +466,7 @@ fun ProjectPlayerDialog(
                         )
                     } else {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Audiotrack, contentDescription = null, tint = NeonViolet, modifier = Modifier.size(64.dp))
+                            Icon(Icons.Default.Audiotrack, contentDescription = null, tint = ElectricBlue, modifier = Modifier.size(64.dp))
                             Spacer(modifier = Modifier.height(12.dp))
                             Text("Audio Playback", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                             Text(formatTime(project.cutDurationMs), fontSize = 13.sp, color = TextSecondary)
