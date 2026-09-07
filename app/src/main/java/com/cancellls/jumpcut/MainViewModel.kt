@@ -216,39 +216,70 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun prepareLocalMediaUri(uri: Uri): Uri {
-        if (uri.scheme == "file") return uri
+        // If it's already an app-private file that exists and can be read, reuse it directly
+        if (uri.scheme == "file") {
+            val file = File(uri.path ?: "")
+            val isAppPrivate = file.absolutePath.startsWith(context.filesDir.path) ||
+                               file.absolutePath.startsWith(context.cacheDir.path)
+            if (isAppPrivate && file.exists() && file.canRead() && file.length() > 0) {
+                return uri
+            }
+        }
 
         try {
             val cacheDir = File(context.cacheDir, "input_cache").apply { mkdirs() }
             var extension = "mp4"
             var fileName = "input_${System.currentTimeMillis()}"
 
-            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (nameIndex != -1) {
-                        val displayName = cursor.getString(nameIndex)
-                        if (!displayName.isNullOrBlank()) {
-                            fileName = displayName.substringBeforeLast(".")
-                            val ext = displayName.substringAfterLast(".", "")
-                            if (ext.isNotBlank()) extension = ext
+            if (uri.scheme == "content") {
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex != -1) {
+                            val displayName = cursor.getString(nameIndex)
+                            if (!displayName.isNullOrBlank()) {
+                                fileName = displayName.substringBeforeLast(".")
+                                val ext = displayName.substringAfterLast(".", "")
+                                if (ext.isNotBlank()) extension = ext
+                            }
                         }
                     }
                 }
+            } else if (uri.scheme == "file") {
+                val f = File(uri.path ?: "")
+                if (f.name.isNotBlank()) {
+                    fileName = f.name.substringBeforeLast(".")
+                    val ext = f.name.substringAfterLast(".", "")
+                    if (ext.isNotBlank()) extension = ext
+                }
             }
 
-            val cachedFile = File(cacheDir, "${fileName}_${System.currentTimeMillis()}.$extension")
-            context.contentResolver.openInputStream(uri)?.use { input ->
+            val safeFileName = fileName.replace("[^a-zA-Z0-9._-]".toRegex(), "_").take(50)
+            val cachedFile = File(cacheDir, "${safeFileName}_${System.currentTimeMillis()}.$extension")
+
+            val inputStream = if (uri.scheme == "content") {
+                context.contentResolver.openInputStream(uri)
+            } else {
+                try {
+                    val f = File(uri.path ?: "")
+                    if (f.exists() && f.canRead()) f.inputStream() else context.contentResolver.openInputStream(uri)
+                } catch (e: Exception) {
+                    context.contentResolver.openInputStream(uri)
+                }
+            }
+
+            inputStream?.use { input ->
                 cachedFile.outputStream().use { output ->
                     input.copyTo(output)
                 }
             }
 
             if (cachedFile.exists() && cachedFile.length() > 0) {
+                Log.d(TAG, "Cached media URI successfully to local file: ${cachedFile.absolutePath} (${cachedFile.length()} bytes)")
                 return Uri.fromFile(cachedFile)
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to cache content URI locally, using original", e)
+            Log.w(TAG, "Failed to cache media URI locally: ${e.message}", e)
         }
         return uri
     }
@@ -332,6 +363,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     inputUri = media.uri,
                     speechSegments = keptSegments,
                     outputFile = outputFile,
+                    totalDurationMs = media.durationMs,
                     extractAudioOnly = isAudioOnly,
                     autoZoomJumpcuts = config.autoZoomJumpcuts,
                     microCrossfade = config.microCrossfade

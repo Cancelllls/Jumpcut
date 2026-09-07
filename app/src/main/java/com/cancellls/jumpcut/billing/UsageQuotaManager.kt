@@ -246,6 +246,19 @@ object UsageQuotaManager {
     }
 
     /**
+     * Testing / developer utility to reset local quota during testing.
+     */
+    fun resetQuotaForTesting(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean("debug_reset_quota", true)
+            .remove(KEY_LAST_EXPORT_DATE)
+            .remove(KEY_DAILY_EXPORT_COUNT)
+            .apply()
+        _remainingExports.value = FREE_DAILY_EXPORT_LIMIT
+    }
+
+    /**
      * Records an export event.
      */
     fun recordExport(context: Context, isPro: Boolean) {
@@ -262,6 +275,7 @@ object UsageQuotaManager {
         prefs.edit()
             .putString(KEY_LAST_EXPORT_DATE, today)
             .putInt(KEY_DAILY_EXPORT_COUNT, newCount)
+            .putBoolean("debug_reset_quota", false)
             .apply()
         _remainingExports.value = (FREE_DAILY_EXPORT_LIMIT - newCount).coerceAtLeast(0)
 
@@ -285,6 +299,11 @@ object UsageQuotaManager {
      * Public MediaStore entries survive app uninstallation and "Clear Storage".
      */
     private fun getPersistentExportCountToday(context: Context, todayDateStr: String): Int {
+        if (com.cancellls.jumpcut.BuildConfig.DEBUG &&
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getBoolean("debug_reset_quota", false)
+        ) {
+            return 0
+        }
         var count = 0
         try {
             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {

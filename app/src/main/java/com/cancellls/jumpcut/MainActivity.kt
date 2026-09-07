@@ -239,6 +239,9 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIncomingIntent(intent: Intent?) {
         if (intent == null) return
+        if (com.cancellls.jumpcut.BuildConfig.DEBUG && intent.getBooleanExtra("reset_quota", false)) {
+            com.cancellls.jumpcut.billing.UsageQuotaManager.resetQuotaForTesting(this)
+        }
         when (intent.action) {
             Intent.ACTION_SEND -> {
                 val uri = androidx.core.content.IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)

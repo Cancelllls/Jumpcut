@@ -6,6 +6,7 @@ import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -27,6 +28,7 @@ class MicroCrossfadeAudioProcessor(
             return inputAudioFormat
         }
         fadeSamples = (inputAudioFormat.sampleRate * fadeDurationMs / 1000L) * inputAudioFormat.channelCount
+        samplesProcessed = 0L
         return inputAudioFormat
     }
 
@@ -34,7 +36,8 @@ class MicroCrossfadeAudioProcessor(
         val remaining = inputBuffer.remaining()
         if (remaining == 0) return
 
-        if (fadeSamples <= 0L) {
+        if (fadeSamples <= 0L || samplesProcessed >= fadeSamples) {
+            // Ultra-fast memory passthrough once fade-in is completed
             val outputBuffer = replaceOutputBuffer(remaining)
             outputBuffer.put(inputBuffer)
             outputBuffer.flip()
@@ -42,12 +45,13 @@ class MicroCrossfadeAudioProcessor(
         }
 
         val outputBuffer = replaceOutputBuffer(remaining)
+        outputBuffer.order(ByteOrder.nativeOrder())
         val shortBuffer = inputBuffer.asShortBuffer()
         val totalShorts = remaining / 2
 
         for (i in 0 until totalShorts) {
             val sample = shortBuffer.get()
-            val gain = if (fadeSamples > 0 && samplesProcessed < fadeSamples) {
+            val gain = if (samplesProcessed < fadeSamples) {
                 // Smooth half-cosine fade-in
                 val progress = samplesProcessed.toFloat() / fadeSamples.toFloat()
                 sin(progress * (PI.toFloat() / 2f))
@@ -69,5 +73,6 @@ class MicroCrossfadeAudioProcessor(
 
     override fun onReset() {
         samplesProcessed = 0L
+        fadeSamples = 0L
     }
 }

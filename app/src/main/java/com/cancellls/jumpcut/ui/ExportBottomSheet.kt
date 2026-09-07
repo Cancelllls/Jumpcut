@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -36,6 +38,7 @@ fun ExportBottomSheet(
     onConfirmExport: (ExportConfig) -> Unit,
     onExportEdl: ((Boolean) -> Unit)? = null
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var extractAudioOnly by remember { mutableStateOf(initialConfig.extractAudioOnly || !isVideo) }
     var saveToGallery by remember { mutableStateOf(initialConfig.saveToGallery) }
     var autoZoomJumpcuts by remember { mutableStateOf(initialConfig.autoZoomJumpcuts) }
@@ -43,6 +46,7 @@ fun ExportBottomSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
         containerColor = SurfaceDark,
         dragHandle = { BottomSheetDefaults.DragHandle(color = CardBorder) },
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
@@ -50,6 +54,7 @@ fun ExportBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 36.dp)
         ) {
@@ -219,13 +224,14 @@ fun ExportBottomSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Auto-Zoom Jumpcuts (talking-head dynamic zoom)
-            if (isVideo && !extractAudioOnly) {
+            // Auto-Zoom Jumpcuts (Pro Feature)
+            if (isVideo) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
                         .background(CardDark)
+                        .clickable { autoZoomJumpcuts = !autoZoomJumpcuts }
                         .padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -286,6 +292,7 @@ fun ExportBottomSheet(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(CardDark)
+                    .clickable { microCrossfade = !microCrossfade }
                     .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -345,6 +352,7 @@ fun ExportBottomSheet(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(CardDark)
+                    .clickable { saveToGallery = !saveToGallery }
                     .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween

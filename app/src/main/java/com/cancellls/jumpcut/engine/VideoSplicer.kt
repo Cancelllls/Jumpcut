@@ -38,13 +38,22 @@ object VideoSplicer {
         inputUri: Uri,
         speechSegments: List<CutSegment>,
         outputFile: File,
+        totalDurationMs: Long = 0L,
         extractAudioOnly: Boolean = false,
         autoZoomJumpcuts: Boolean = false,
         microCrossfade: Boolean = true
     ): Flow<SplicerProgress> = callbackFlow {
-        val validSegments = speechSegments.filter { (it.endMs - it.startMs) >= 80L }
+        val maxDuration = if (totalDurationMs > 0L) totalDurationMs else Long.MAX_VALUE
+        val validSegments = speechSegments.mapNotNull { seg ->
+            val start = seg.startMs.coerceIn(0L, (maxDuration - 60L).coerceAtLeast(0L))
+            val end = seg.endMs.coerceIn(start + 50L, maxDuration)
+            if (end - start >= 60L) {
+                seg.copy(startMs = start, endMs = end)
+            } else null
+        }
+
         if (validSegments.isEmpty()) {
-            trySend(SplicerProgress.Error(IllegalArgumentException("No valid speech segments to export")))
+            trySend(SplicerProgress.Error(IllegalArgumentException("No valid speech segments to export within duration")))
             close()
             return@callbackFlow
         }
@@ -52,26 +61,20 @@ object VideoSplicer {
         val handler = Handler(Looper.getMainLooper())
         val progressHolder = ProgressHolder()
 
-        // 1.12x punch-in zoom for dynamic 2-camera talking-head pacing
-        val zoomEffect = ScaleAndRotateTransformation.Builder()
+        // Maintain uniform video effects across all sequence items when auto-zoom is enabled:
+        // Even cuts receive 1.0f identity scale; odd cuts receive 1.12f punch-in zoom.
+        // Keeping the VideoFrameProcessor pipeline uniform prevents sequence reconfiguration crashes.
+        val punchInZoomEffect = ScaleAndRotateTransformation.Builder()
             .setScale(1.12f, 1.12f)
             .build()
-
-        val audioProcessors: List<androidx.media3.common.audio.AudioProcessor> = if (microCrossfade) {
-            listOf(MicroCrossfadeAudioProcessor(15L))
-        } else {
-            emptyList()
-        }
-
-        val baseEffects = Effects(audioProcessors, emptyList())
-        val zoomEffects = Effects(audioProcessors, listOf(zoomEffect))
+        val identityZoomEffect = ScaleAndRotateTransformation.Builder()
+            .setScale(1.0f, 1.0f)
+            .build()
 
         val editedMediaItems = validSegments.mapIndexed { index, seg ->
-            val start = maxOf(0L, seg.startMs)
-            val end = maxOf(start + 50L, seg.endMs)
             val clipping = MediaItem.ClippingConfiguration.Builder()
-                .setStartPositionMs(start)
-                .setEndPositionMs(end)
+                .setStartPositionMs(seg.startMs)
+                .setEndPositionMs(seg.endMs)
                 .setStartsAtKeyFrame(false)
                 .build()
 
@@ -84,11 +87,22 @@ object VideoSplicer {
                 .setRemoveVideo(extractAudioOnly)
                 .setFlattenForSlowMotion(false)
 
-            // Alternate punch-in zoom on every odd speech cut with micro-crossfade
-            if (!extractAudioOnly && autoZoomJumpcuts && (index % 2 == 1)) {
-                builder.setEffects(zoomEffects)
-            } else if (audioProcessors.isNotEmpty()) {
-                builder.setEffects(baseEffects)
+            // Each EditedMediaItem must have its own AudioProcessor instance to avoid
+            // state corruption across clip boundaries in Media3 AudioGraph
+            val audioProcessors = if (microCrossfade) {
+                listOf(MicroCrossfadeAudioProcessor(15L))
+            } else {
+                emptyList()
+            }
+
+            val videoEffects = if (!extractAudioOnly && autoZoomJumpcuts) {
+                if (index % 2 == 1) listOf(punchInZoomEffect) else listOf(identityZoomEffect)
+            } else {
+                emptyList()
+            }
+
+            if (audioProcessors.isNotEmpty() || videoEffects.isNotEmpty()) {
+                builder.setEffects(Effects(audioProcessors, videoEffects))
             }
 
             builder.build()
@@ -110,17 +124,36 @@ object VideoSplicer {
                 exportResult: ExportResult,
                 exportException: ExportException
             ) {
+                val cause = exportException.cause
+                val causeMsg = cause?.message
+                val detailedCause = generateSequence(cause) { it.cause }
+                    .mapNotNull { it.message }
+                    .firstOrNull { it.isNotBlank() && it != "Asset loader error" }
+
                 Log.e(
                     TAG,
-                    "Export failed: code=${exportException.errorCode}, name=${exportException.errorCodeName}, msg=${exportException.message}",
+                    "Export failed: code=${exportException.errorCode}, name=${exportException.errorCodeName}, msg=${exportException.message}, cause=${cause?.javaClass?.name}: $causeMsg",
                     exportException
                 )
+
                 val detailedMsg = when (exportException.errorCode) {
                     ExportException.ERROR_CODE_MUXING_TIMEOUT ->
                         "Muxer timed out while encoding video cuts."
                     ExportException.ERROR_CODE_MUXING_FAILED ->
-                        "Hardware muxer error: ${exportException.cause?.message ?: exportException.message}"
-                    else -> exportException.message ?: "Export failed (${exportException.errorCodeName})"
+                        "Hardware muxer error: ${detailedCause ?: causeMsg ?: exportException.message}"
+                    ExportException.ERROR_CODE_DECODER_INIT_FAILED ->
+                        "Hardware decoder initialization failed: ${detailedCause ?: "Device codec limit reached"}"
+                    ExportException.ERROR_CODE_DECODING_FAILED ->
+                        "Video decoding error: ${detailedCause ?: "Corrupted media segment or unsupported codec"}"
+                    else -> {
+                        if (!detailedCause.isNullOrBlank()) {
+                            "Asset processing error: $detailedCause"
+                        } else if (!exportException.message.isNullOrBlank()) {
+                            exportException.message!!
+                        } else {
+                            "Export failed (${exportException.errorCodeName})"
+                        }
+                    }
                 }
                 trySend(SplicerProgress.Error(Exception(detailedMsg, exportException)))
                 close()
@@ -131,10 +164,20 @@ object VideoSplicer {
             .setEnableFallback(true)
             .build()
 
+        val decoderFactory = androidx.media3.transformer.DefaultDecoderFactory.Builder(context)
+            .build()
+
+        val assetLoaderFactory = androidx.media3.transformer.DefaultAssetLoaderFactory(
+            context,
+            decoderFactory,
+            androidx.media3.common.util.Clock.DEFAULT
+        )
+
         val inAppMuxerFactory = androidx.media3.transformer.InAppMuxer.Factory.Builder().build()
 
         // Disable artificial watchdog timeout (C.TIME_UNSET) and use in-app pure MP4 muxer to avoid Muxer errors on Snapdragon/Qualcomm chipsets
         val transformer = Transformer.Builder(context)
+            .setAssetLoaderFactory(assetLoaderFactory)
             .setEncoderFactory(encoderFactory)
             .setMuxerFactory(inAppMuxerFactory)
             .setMaxDelayBetweenMuxerSamplesMs(androidx.media3.common.C.TIME_UNSET)
