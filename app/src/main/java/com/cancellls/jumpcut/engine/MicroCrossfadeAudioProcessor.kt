@@ -37,6 +37,7 @@ class MicroCrossfadeAudioProcessor(
         if (fadeSamples <= 0L) {
             val outputBuffer = replaceOutputBuffer(remaining)
             outputBuffer.put(inputBuffer)
+            outputBuffer.flip()
             return
         }
 
@@ -59,6 +60,7 @@ class MicroCrossfadeAudioProcessor(
         }
 
         inputBuffer.position(inputBuffer.limit())
+        outputBuffer.flip()
     }
 
     override fun onFlush() {

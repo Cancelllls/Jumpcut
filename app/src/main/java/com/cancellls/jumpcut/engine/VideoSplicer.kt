@@ -131,9 +131,12 @@ object VideoSplicer {
             .setEnableFallback(true)
             .build()
 
-        // Disable artificial watchdog timeout (C.TIME_UNSET) to avoid Muxer errors on Snapdragon/Qualcomm chipsets
+        val inAppMuxerFactory = androidx.media3.transformer.InAppMuxer.Factory.Builder().build()
+
+        // Disable artificial watchdog timeout (C.TIME_UNSET) and use in-app pure MP4 muxer to avoid Muxer errors on Snapdragon/Qualcomm chipsets
         val transformer = Transformer.Builder(context)
             .setEncoderFactory(encoderFactory)
+            .setMuxerFactory(inAppMuxerFactory)
             .setMaxDelayBetweenMuxerSamplesMs(androidx.media3.common.C.TIME_UNSET)
             .addListener(listener)
             .build()

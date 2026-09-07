@@ -92,6 +92,7 @@ dependencies {
     implementation("androidx.media3:media3-transformer:$media3Version")
     implementation("androidx.media3:media3-effect:$media3Version")
     implementation("androidx.media3:media3-common:$media3Version")
+    implementation("androidx.media3:media3-muxer:$media3Version")
 
     // Google Play Store Monetization (Ads + In-App Billing v7)
     implementation("com.google.android.gms:play-services-ads:23.6.0")

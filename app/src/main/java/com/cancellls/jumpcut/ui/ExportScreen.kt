@@ -256,14 +256,57 @@ fun ExportScreen(
             }
 
             is ProcessingState.Error -> {
-                Icon(Icons.Default.ErrorOutline, contentDescription = "Error", tint = SilenceRed, modifier = Modifier.size(64.dp))
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(text = "Export Failed", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                val isMediaLoadError = state.message.contains("open", true) ||
+                    state.message.contains("media", true) ||
+                    state.message.contains("permission", true) ||
+                    state.message.contains("analyz", true)
+
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(SilenceRed.copy(alpha = 0.15f))
+                        .border(1.dp, SilenceRed.copy(alpha = 0.4f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ErrorOutline,
+                        contentDescription = "Error",
+                        tint = SilenceRed,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Text(
+                    text = if (isMediaLoadError) "Media Access Notice" else "Export Interrupted",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = state.message, fontSize = 13.sp, color = TextSecondary, textAlign = TextAlign.Center)
-                Spacer(modifier = Modifier.height(24.dp))
-                Button(onClick = onDoneClick, colors = ButtonDefaults.buttonColors(containerColor = CardDark)) {
-                    Text("Try Again")
+
+                Text(
+                    text = state.message,
+                    fontSize = 13.sp,
+                    color = TextSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                Button(
+                    onClick = onDoneClick,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = CardDark),
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .height(48.dp)
+                ) {
+                    Text("Return to Studio", fontWeight = FontWeight.SemiBold, color = TextPrimary)
                 }
             }
 

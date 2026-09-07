@@ -44,21 +44,8 @@ class MainActivity : ComponentActivity() {
             viewModel.unlockPro()
         }
 
-        // Handle incoming shared media or links
-        if (intent?.action == Intent.ACTION_SEND) {
-            val uri = androidx.core.content.IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
-            if (uri != null) {
-                viewModel.selectMedia(uri)
-            } else {
-                val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
-                val url = sharedText?.split("\\s+".toRegex())?.firstOrNull {
-                    it.startsWith("http://", ignoreCase = true) || it.startsWith("https://", ignoreCase = true)
-                }
-                if (url != null) {
-                    viewModel.downloadFromUrl(url)
-                }
-            }
-        }
+        // Handle incoming media or links
+        handleIncomingIntent(intent)
 
         setContent {
             JumpCutTheme {
@@ -238,6 +225,38 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingIntent(intent)
+    }
+
+    private fun handleIncomingIntent(intent: Intent?) {
+        if (intent == null) return
+        when (intent.action) {
+            Intent.ACTION_SEND -> {
+                val uri = androidx.core.content.IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+                if (uri != null) {
+                    viewModel.selectMedia(uri)
+                } else {
+                    val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+                    val url = sharedText?.split("\\s+".toRegex())?.firstOrNull {
+                        it.startsWith("http://", ignoreCase = true) || it.startsWith("https://", ignoreCase = true)
+                    }
+                    if (url != null) {
+                        viewModel.downloadFromUrl(url)
+                    }
+                }
+            }
+            Intent.ACTION_VIEW -> {
+                val uri = intent.data
+                if (uri != null) {
+                    viewModel.selectMedia(uri)
+                }
             }
         }
     }
