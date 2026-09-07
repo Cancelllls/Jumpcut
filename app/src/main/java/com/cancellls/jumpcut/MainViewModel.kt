@@ -76,6 +76,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         refreshCacheSize()
         UsageQuotaManager.refreshQuota(context, _isProUser.value)
+        UsageQuotaManager.syncOnlineTimeAsync(context, _isProUser.value)
     }
 
     fun refreshCacheSize() {
