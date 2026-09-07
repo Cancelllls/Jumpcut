@@ -34,10 +34,20 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        // Handle incoming shared media
+        // Handle incoming shared media or links
         if (intent?.action == Intent.ACTION_SEND) {
             val uri = androidx.core.content.IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
-            uri?.let { viewModel.selectMedia(it) }
+            if (uri != null) {
+                viewModel.selectMedia(uri)
+            } else {
+                val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+                val url = sharedText?.split("\\s+".toRegex())?.firstOrNull {
+                    it.startsWith("http://", ignoreCase = true) || it.startsWith("https://", ignoreCase = true)
+                }
+                if (url != null) {
+                    viewModel.downloadFromUrl(url)
+                }
+            }
         }
 
         setContent {
@@ -50,6 +60,18 @@ class MainActivity : ComponentActivity() {
 
                 var showProPaywall by remember { mutableStateOf(false) }
 
+                // Keep screen on during heavy operations (analyzing and export) so OS doesn't sleep and abort
+                DisposableEffect(processingState) {
+                    if (processingState is ProcessingState.Analyzing || processingState is ProcessingState.Exporting) {
+                        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    } else {
+                        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                    onDispose {
+                        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                }
+
                 Surface(
                     modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
                     color = BgDark
@@ -58,6 +80,7 @@ class MainActivity : ComponentActivity() {
                         is ProcessingState.Idle -> {
                             HomeScreen(
                                 onMediaSelected = { uri -> viewModel.selectMedia(uri) },
+                                onDownloadUrl = { url -> viewModel.downloadFromUrl(url) },
                                 onApplyPreset = { preset -> viewModel.updateSettings(preset) },
                                 onOpenPro = { showProPaywall = true },
                                 isProUser = isProUser

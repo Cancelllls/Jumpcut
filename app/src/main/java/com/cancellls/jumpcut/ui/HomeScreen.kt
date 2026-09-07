@@ -16,6 +16,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,10 +36,14 @@ import com.cancellls.jumpcut.theme.*
 @Composable
 fun HomeScreen(
     onMediaSelected: (Uri) -> Unit,
+    onDownloadUrl: (String) -> Unit,
     onApplyPreset: (CutSettings) -> Unit,
     onOpenPro: () -> Unit,
     isProUser: Boolean
 ) {
+    var showUrlDialog by remember { mutableStateOf(false) }
+    var inputUrl by remember { mutableStateOf("") }
+
     val singleMediaPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
@@ -203,7 +211,48 @@ fun HomeScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Browse Files & Downloads Button
+            OutlinedButton(
+                onClick = { anyFilePicker.launch("video/*") },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = CardDark,
+                    contentColor = TextPrimary
+                ),
+                border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder))),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
+            ) {
+                Icon(Icons.Default.FolderOpen, contentDescription = "Files", tint = PrimaryCyan, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Browse Files", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+
+            // Download from Link / URL Button
+            OutlinedButton(
+                onClick = { showUrlDialog = true },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = CardDark,
+                    contentColor = TextPrimary
+                ),
+                border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder))),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
+            ) {
+                Icon(Icons.Default.Link, contentDescription = "Link", tint = NeonViolet, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("From URL / Link", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
 
         // Secondary Button: Pick Audio File (e.g. Podcasts, Voice Notes)
         OutlinedButton(
@@ -302,6 +351,65 @@ fun HomeScreen(
             icon = Icons.Default.VolumeOff,
             title = "Speech Padding Armor",
             description = "Natural sentence endings and word consonants are never cut off."
+        )
+    }
+
+    if (showUrlDialog) {
+        AlertDialog(
+            onDismissRequest = { showUrlDialog = false },
+            containerColor = SurfaceDark,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CloudDownload, contentDescription = null, tint = PrimaryCyan)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Download Video Link", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Paste any direct web link to an MP4, MOV, or audio file to download and cut it automatically.",
+                        fontSize = 13.sp,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = inputUrl,
+                        onValueChange = { inputUrl = it },
+                        placeholder = { Text("https://example.com/video.mp4", color = TextMuted, fontSize = 13.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PrimaryCyan,
+                            unfocusedBorderColor = CardBorder,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            cursorColor = PrimaryCyan
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val trimmed = inputUrl.trim()
+                        if (trimmed.isNotBlank()) {
+                            showUrlDialog = false
+                            onDownloadUrl(trimmed)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan)
+                ) {
+                    Text("Download & Cut", color = BgDark, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUrlDialog = false }) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
         )
     }
 }

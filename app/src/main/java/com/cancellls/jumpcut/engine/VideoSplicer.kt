@@ -37,8 +37,9 @@ object VideoSplicer {
         speechSegments: List<CutSegment>,
         outputFile: File
     ): Flow<SplicerProgress> = callbackFlow {
-        if (speechSegments.isEmpty()) {
-            trySend(SplicerProgress.Error(IllegalArgumentException("No speech segments to export")))
+        val validSegments = speechSegments.filter { (it.endMs - it.startMs) >= 80L }
+        if (validSegments.isEmpty()) {
+            trySend(SplicerProgress.Error(IllegalArgumentException("No valid speech segments to export")))
             close()
             return@callbackFlow
         }
@@ -46,10 +47,11 @@ object VideoSplicer {
         val handler = Handler(Looper.getMainLooper())
         val progressHolder = ProgressHolder()
 
-        val editedMediaItems = speechSegments.map { seg ->
+        val editedMediaItems = validSegments.map { seg ->
             val clipping = MediaItem.ClippingConfiguration.Builder()
                 .setStartPositionMs(seg.startMs)
                 .setEndPositionMs(seg.endMs)
+                .setStartsAtKeyFrame(false)
                 .build()
 
             val mediaItem = MediaItem.Builder()
@@ -58,6 +60,7 @@ object VideoSplicer {
                 .build()
 
             EditedMediaItem.Builder(mediaItem)
+                .setFlattenForSlowMotion(false)
                 .build()
         }
 
@@ -83,7 +86,17 @@ object VideoSplicer {
             }
         }
 
+        val encoderFactory = androidx.media3.transformer.DefaultEncoderFactory.Builder(context)
+            .setEnableFallback(true)
+            .build()
+
+        val decoderFactory = androidx.media3.transformer.DefaultDecoderFactory.Builder(context)
+            .build()
+
         val transformer = Transformer.Builder(context)
+            .setEncoderFactory(encoderFactory)
+            .setDecoderFactory(decoderFactory)
+            .setMaxDelayBetweenMuxerSamplesMs(10_000L)
             .addListener(listener)
             .build()
 

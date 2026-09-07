@@ -66,38 +66,56 @@ object SilenceDetector {
         }
 
         // 3. Apply padding around speech (shrink silence interval by paddingMs on each end)
-        val adjustedSilences = mutableListOf<Pair<Long, Long>>()
         val pad = settings.paddingMs
+        val rawAdjustedSilences = mutableListOf<Pair<Long, Long>>()
 
         for ((start, end) in candidateSilences) {
             val paddedStart = start + pad
             val paddedEnd = end - pad
-            // Only keep if the silence is still significant after padding
-            if (paddedEnd - paddedStart >= 100L) {
-                adjustedSilences.add(Pair(paddedStart, paddedEnd))
+            // Only keep if the silence is at least 120ms after padding
+            if (paddedEnd - paddedStart >= 120L) {
+                rawAdjustedSilences.add(Pair(paddedStart, paddedEnd))
             }
         }
 
-        // 4. Construct complete interleaved timeline of speech and silence
+        // 4. Merge silences separated by micro-sounds (<150ms) to avoid microscopic clips
+        val sortedSilences = rawAdjustedSilences.sortedBy { it.first }
+        val mergedSilences = mutableListOf<Pair<Long, Long>>()
+        for (silence in sortedSilences) {
+            if (mergedSilences.isEmpty()) {
+                mergedSilences.add(silence)
+            } else {
+                val last = mergedSilences.last()
+                if (silence.first <= last.second + 150L) {
+                    // Merge adjacent silences
+                    mergedSilences[mergedSilences.size - 1] = Pair(last.first, max(last.second, silence.second))
+                } else {
+                    mergedSilences.add(silence)
+                }
+            }
+        }
+
+        // 5. Construct complete interleaved timeline of speech and silence
         val allSegments = mutableListOf<CutSegment>()
         val speechSegments = mutableListOf<CutSegment>()
         var cursorMs = 0L
         var segId = 0
 
-        for ((silenceStart, silenceEnd) in adjustedSilences) {
+        for ((silenceStart, silenceEnd) in mergedSilences) {
             if (silenceStart > cursorMs) {
-                // Speech block before this silence
-                val speech = CutSegment(
-                    id = segId++,
-                    startMs = cursorMs,
-                    endMs = silenceStart,
-                    isSilence = false
-                )
-                allSegments.add(speech)
-                speechSegments.add(speech)
+                val speechDur = silenceStart - cursorMs
+                if (speechDur >= 100L) {
+                    val speech = CutSegment(
+                        id = segId++,
+                        startMs = cursorMs,
+                        endMs = silenceStart,
+                        isSilence = false
+                    )
+                    allSegments.add(speech)
+                    speechSegments.add(speech)
+                }
             }
 
-            // The silence block
             val silence = CutSegment(
                 id = segId++,
                 startMs = silenceStart,
@@ -109,7 +127,7 @@ object SilenceDetector {
         }
 
         val totalDuration = max(analysis.durationMs, timePoints.lastOrNull() ?: 0L)
-        if (cursorMs < totalDuration) {
+        if (totalDuration - cursorMs >= 100L) {
             val finalSpeech = CutSegment(
                 id = segId++,
                 startMs = cursorMs,
@@ -118,6 +136,14 @@ object SilenceDetector {
             )
             allSegments.add(finalSpeech)
             speechSegments.add(finalSpeech)
+        }
+
+        // If no speech segments remained, retain whole video
+        if (speechSegments.isEmpty()) {
+            val whole = CutSegment(0, 0, totalDuration, false)
+            allSegments.clear()
+            allSegments.add(whole)
+            speechSegments.add(whole)
         }
 
         val cutDuration = speechSegments.sumOf { it.durationMs }

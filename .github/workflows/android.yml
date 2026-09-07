@@ -59,13 +59,16 @@ jobs:
           mkdir -p release_assets
           # Find and copy signed release apk
           if [ -f app/build/outputs/apk/release/app-release.apk ]; then
-            cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-v1.0.0-release.apk
+            cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-v1.0.1-release.apk
+            cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-release.apk
           elif [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-v1.0.0-release.apk
+            cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-v1.0.1-release.apk
+            cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-release.apk
           fi
           # Copy debug apk
           if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-v1.0.0-debug.apk
+            cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-v1.0.1-debug.apk
+            cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-debug.apk
           fi
           echo "Release assets ready:"
           ls -lh release_assets/
@@ -74,7 +77,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: JumpCut-Debug-APK
-          path: release_assets/JumpCut-v1.0.0-debug.apk
+          path: release_assets/JumpCut-v1.0.1-debug.apk
           retention-days: 14
 
       - name: Upload Release APK Artifact
@@ -82,33 +85,38 @@ jobs:
         if: always()
         with:
           name: JumpCut-Release-APK
-          path: release_assets/JumpCut-v1.0.0-release.apk
+          path: release_assets/JumpCut-v1.0.1-release.apk
           retention-days: 14
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.0.0
-          name: "JumpCut AI v1.0.0"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.0.1' }}
+          name: "JumpCut AI ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.0.1' }}"
           draft: false
           prerelease: false
           body: |
-            ## 🚀 JumpCut AI v1.0.0 (Native Android)
+            ## 🚀 JumpCut AI v1.0.1 (Native Android)
             
-            Automatically detect and cut awkward pauses, breathing, and dead air from videos in seconds.
+            ### 🛠️ What's New in v1.0.1:
+            - **Browse Files & Downloads Picker**: Added direct file manager picker (`video/*`) so all videos in `/sdcard/Download` or internal storage can be selected directly without waiting for Android Photo Picker / MediaStore indexing.
+            - **Download from Link / URL**: Added direct in-app URL downloader. Paste any web video link (`.mp4`, `.mov`, audio) to download with real-time progress and auto-open for silence cutting.
+            - **Share Link to JumpCut**: Receive shared video links directly from browsers or social media via Android Share sheet (`text/plain`).
+            - **Long Video Export Crash Fix**:
+              - Enabled `android:largeHeap="true"` to prevent Out Of Memory (OOM) errors during long video exports.
+              - Added `FLAG_KEEP_SCREEN_ON` during analysis & export so the device does not sleep or terminate background encoding.
+              - Enabled Media3 `DefaultEncoderFactory` fallback for maximum hardware codec compatibility on Snapdragon, Exynos, and MediaTek devices.
+              - Micro-segment sanitization in `SilenceDetector`: merged adjacent silences (<150ms) and eliminated micro-clips (<100ms) that caused decoder starvation and PTS timestamp crashes on longer videos.
+              - Content URI local caching to prevent Android ContentProvider permission drops during multi-clip splicing.
             
             ### 📱 Download & Install:
-            - **`JumpCut-v1.0.0-release.apk`** — Production Signed Release (Tap to install directly on your phone)
-            - **`JumpCut-v1.0.0-debug.apk`** — Debug Build with extended developer logging
-            
-            ### ⚡ Highlights:
-            - **100% On-Device & Private**: Zero cloud uploads. Your videos never leave your phone hardware.
-            - **Instant Hardware Splicing**: Powered by AndroidX Media3 Transformer.
-            - **Live Waveform & Auto-Skip Preview**: Real-time silence skipping during preview.
-            - **Pro Controls**: Fine-tune silence threshold (-45dB to -18dB), min silence duration, and word padding armor.
+            - **`JumpCut-v1.0.1-release.apk`** — Production Signed Release (Tap to install directly on your phone)
+            - **`JumpCut-v1.0.1-debug.apk`** — Debug Build with extended developer logging
           files: |
-            release_assets/JumpCut-v1.0.0-release.apk
-            release_assets/JumpCut-v1.0.0-debug.apk
+            release_assets/JumpCut-v1.0.1-release.apk
+            release_assets/JumpCut-v1.0.1-debug.apk
+            release_assets/JumpCut-release.apk
+            release_assets/JumpCut-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

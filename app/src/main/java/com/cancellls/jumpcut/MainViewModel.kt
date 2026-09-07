@@ -49,15 +49,88 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isProUser = MutableStateFlow(false)
     val isProUser: StateFlow<Boolean> = _isProUser.asStateFlow()
 
+    fun downloadFromUrl(rawUrl: String) {
+        val urlString = rawUrl.trim()
+        if (!urlString.startsWith("http://", ignoreCase = true) && !urlString.startsWith("https://", ignoreCase = true)) {
+            _processingState.value = ProcessingState.Error("Invalid URL. Must start with http:// or https://")
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                _processingState.value = ProcessingState.Analyzing(0.02f, "Connecting to video URL...")
+                val downloadedFile = withContext(Dispatchers.IO) {
+                    val url = java.net.URL(urlString)
+                    val connection = (url.openConnection() as java.net.HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = 15000
+                        readTimeout = 30000
+                        instanceFollowRedirects = true
+                    }
+                    connection.connect()
+
+                    val responseCode = connection.responseCode
+                    if (responseCode !in 200..299) {
+                        throw IllegalStateException("Server returned HTTP $responseCode")
+                    }
+
+                    val totalBytes = connection.contentLengthLong
+                    val downloadDir = File(context.cacheDir, "downloads").apply { mkdirs() }
+                    val extension = if (urlString.contains(".mp3", true) || urlString.contains(".m4a", true) || urlString.contains(".wav", true)) "m4a" else "mp4"
+                    val targetFile = File(downloadDir, "jumpcut_dl_${System.currentTimeMillis()}.$extension")
+
+                    connection.inputStream.use { input ->
+                        targetFile.outputStream().use { output ->
+                            val buffer = ByteArray(32 * 1024)
+                            var read: Int
+                            var downloaded = 0L
+
+                            while (input.read(buffer).also { read = it } != -1) {
+                                output.write(buffer, 0, read)
+                                downloaded += read
+                                if (totalBytes > 0) {
+                                    val progress = (0.02f + (downloaded.toFloat() / totalBytes) * 0.40f).coerceIn(0.02f, 0.42f)
+                                    val mbDownloaded = String.format(Locale.US, "%.1f", downloaded / (1024.0 * 1024.0))
+                                    val mbTotal = String.format(Locale.US, "%.1f", totalBytes / (1024.0 * 1024.0))
+                                    _processingState.value = ProcessingState.Analyzing(
+                                        progress,
+                                        "Downloading: ${mbDownloaded}MB / ${mbTotal}MB"
+                                    )
+                                } else {
+                                    val mbDownloaded = String.format(Locale.US, "%.1f", downloaded / (1024.0 * 1024.0))
+                                    _processingState.value = ProcessingState.Analyzing(
+                                        0.20f,
+                                        "Downloading: ${mbDownloaded}MB"
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    targetFile
+                }
+
+                selectMedia(Uri.fromFile(downloadedFile))
+            } catch (e: Exception) {
+                Log.e(TAG, "Download error", e)
+                _processingState.value = ProcessingState.Error(e.message ?: "Failed to download video")
+            }
+        }
+    }
+
     fun selectMedia(uri: Uri) {
         viewModelScope.launch {
             try {
-                _processingState.value = ProcessingState.Analyzing(0.05f, "Reading media metadata...")
-                val mediaItem = inspectMedia(uri)
+                _processingState.value = ProcessingState.Analyzing(0.05f, "Preparing media file...")
+                val safeUri = withContext(Dispatchers.IO) {
+                    prepareLocalMediaUri(uri)
+                }
+
+                _processingState.value = ProcessingState.Analyzing(0.12f, "Reading media metadata...")
+                val mediaItem = inspectMedia(safeUri)
                 _selectedMedia.value = mediaItem
 
-                _processingState.value = ProcessingState.Analyzing(0.15f, "Extracting audio waveform...")
-                val analysis = AudioExtractor.analyzeAudio(context, uri) { prog ->
+                _processingState.value = ProcessingState.Analyzing(0.20f, "Extracting audio waveform...")
+                val analysis = AudioExtractor.analyzeAudio(context, safeUri) { prog ->
                     _processingState.value = ProcessingState.Analyzing(prog, "Analyzing voice energy...")
                 }
                 _audioAnalysis.value = analysis
@@ -69,6 +142,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _processingState.value = ProcessingState.Error(e.message ?: "Failed to analyze media")
             }
         }
+    }
+
+    private fun prepareLocalMediaUri(uri: Uri): Uri {
+        if (uri.scheme == "file") return uri
+
+        try {
+            val cacheDir = File(context.cacheDir, "input_cache").apply { mkdirs() }
+            var extension = "mp4"
+            var fileName = "input_${System.currentTimeMillis()}"
+
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1) {
+                        val displayName = cursor.getString(nameIndex)
+                        if (!displayName.isNullOrBlank()) {
+                            fileName = displayName.substringBeforeLast(".")
+                            val ext = displayName.substringAfterLast(".", "")
+                            if (ext.isNotBlank()) extension = ext
+                        }
+                    }
+                }
+            }
+
+            val cachedFile = File(cacheDir, "${fileName}_${System.currentTimeMillis()}.$extension")
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                cachedFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+
+            if (cachedFile.exists() && cachedFile.length() > 0) {
+                return Uri.fromFile(cachedFile)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to cache content URI locally, using original", e)
+        }
+        return uri
     }
 
     fun updateSettings(newSettings: CutSettings) {
