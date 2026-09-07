@@ -36,9 +36,9 @@ fun SettingsScreen(
     val appVersion = remember(context) {
         try {
             val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            pInfo.versionName ?: "1.4.2"
+            pInfo.versionName ?: com.cancellls.jumpcut.BuildConfig.VERSION_NAME
         } catch (e: Exception) {
-            "1.4.2"
+            com.cancellls.jumpcut.BuildConfig.VERSION_NAME
         }
     }
     var showClearConfirm by remember { mutableStateOf(false) }

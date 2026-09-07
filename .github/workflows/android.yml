@@ -59,15 +59,15 @@ jobs:
           mkdir -p release_assets
           # Find and copy signed release apk
           if [ -f app/build/outputs/apk/release/app-release.apk ]; then
-            cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-v1.2.0-release.apk
+            cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-v1.5.0-release.apk
             cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-release.apk
           elif [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-v1.2.0-release.apk
+            cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-v1.5.0-release.apk
             cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-release.apk
           fi
           # Copy debug apk
           if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-v1.2.0-debug.apk
+            cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-v1.5.0-debug.apk
             cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-debug.apk
           fi
           echo "Release assets ready:"
@@ -92,28 +92,27 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.2.0' }}
-          name: "JumpCut AI ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.2.0' }}"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.5.0' }}
+          name: "JumpCut AI ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.5.0' }}"
           draft: false
           prerelease: false
           body: |
-            ## 🚀 JumpCut AI v1.2.0 (Creator Studio Overhaul)
+            ## 🚀 JumpCut AI v1.5.0 (Mobile NLE Studio & Google Play Billing Hardening)
             
-            ### 🎬 What's New in v1.2.0:
-            - **Auto-Zoom Jumpcuts ("YouTuber / 2-Camera Pacing")**: Alternating subtle 1.12x punch-in zooms on consecutive speech cuts to create engaging talking-head retention dynamics for YouTube, Shorts, and TikTok.
-            - **Professional Desktop NLE Bridge (.EDL / .XML Export)**: Creators can now export standard CMX 3600 Edit Decision Lists (`.edl`) and Final Cut Pro XML files directly from mobile into DaVinci Resolve or Adobe Premiere Pro with all individual cuts preserved.
-            - **Multi-Scale Pinch & Zoom Waveform (1x, 2x, 4x)**: Zoom the audio timeline for sub-second precision inspection with smooth auto-centering playhead scrolling and tactile haptics.
-            - **Custom Creator Profiles & Presets**: Save, name, and manage custom silence sensitivity, minimum pause length, and word padding presets (e.g. Studio Mic, Podcast, Walk & Talk).
-            - **Lossless Hardware Splice Pipeline**: 100% on-device private processing with zero cloud uploads and near-instant render times.
-            - **Zero Purple Cinematic Theme**: Deep Obsidian `#0B0F17` & Slate `#111827` surface with Electric Cyan & Sapphire Blue accents.
+            ### 🎬 What's New in v1.5.0:
+            - **Pinned Mobile NLE Dual-Stage Layout**: Sticky upper monitor with 16:9 player, transport HUD (00:00 / 00:00 timecodes, 1.0x-2.0x playback speeds, Hold-for-Raw auditioning), and docked interactive waveform that never scrolls away.
+            - **Precision Timecode Ruler**: Top-mounted timestamp ruler bar (`00:10`, `00:20`...) with major and minor tick subdivisions, visual cut (red) / keep (green) blocks, and draggable needle scrubber.
+            - **3-Tab Modular Control Deck**:
+              - **Tuning Tab**: Live speech floor impact HUD (`X cuts • -YY:ZZ`), decibel sensitivity slider, minimum silence length slider, and word padding armor.
+              - **Presets Tab**: Rhythm profile bank (Viral Shorts, Podcast Studio, Fast Lecture, Vlog & Story) with custom preset creation.
+              - **Pauses Tab**: Granular segment inspector listing exact millisecond durations with tap-to-seek and individual CUT/KEEP toggles.
+            - **Creator Studio Bento Grid**: Obsidian slate dashboard with dynamic studio metrics (Time Saved, Pauses Cut, Lossless Passthrough) and 2x2 Quick Tools (Magic Auto-Cut, Voice Floor, EDL/XML Studio, Batch Splicer).
+            - **Zero-Bypass Google Play Billing**: Hardened client-side billing integration requiring authentic Google Play Store receipt verification and session sanitization.
+            - **Snapdragon 865 / Hardware Muxer Stabilization**: Robust muxer fallback pipeline preventing export crashes on Xiaomi Mi 10T and high-bitrate Android devices.
             
             ### 📱 Download & Install:
-            - **`JumpCut-v1.2.0-release.apk`** / **`JumpCut-release.apk`** — Production Signed Release (Direct APK installer)
-            - **`JumpCut-v1.2.0-debug.apk`** / **`JumpCut-debug.apk`** — Debug Build with extended developer logging
-          files: |
-            release_assets/JumpCut-v1.2.0-release.apk
-            release_assets/JumpCut-v1.2.0-debug.apk
-            release_assets/JumpCut-release.apk
-            release_assets/JumpCut-debug.apk
+            - **`JumpCut-v1.5.0-release.apk`** / **`JumpCut-release.apk`** — Production Signed Release (Direct APK installer)
+            - **`JumpCut-v1.5.0-debug.apk`** / **`JumpCut-debug.apk`** — Debug Build with extended developer logging
+          files: release_assets/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
