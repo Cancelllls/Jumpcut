@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <exclude domain="sharedpref" path="."/>
+    <include domain="sharedpref" path="jumpcut_usage_prefs.xml"/>
+    <include domain="sharedpref" path="jumpcut_billing_prefs.xml"/>
+    <include domain="sharedpref" path="jumpcut_prefs.xml"/>
 </full-backup-content>

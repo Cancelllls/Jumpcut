@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,8 +30,16 @@ fun SettingsScreen(
     onClearCache: () -> Unit,
     isProUser: Boolean,
     onOpenPro: () -> Unit,
-    onReplayIntro: () -> Unit
 ) {
+    val context = LocalContext.current
+    val appVersion = remember(context) {
+        try {
+            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            pInfo.versionName ?: "1.4.2"
+        } catch (e: Exception) {
+            "1.4.2"
+        }
+    }
     var showClearConfirm by remember { mutableStateOf(false) }
 
     Column(
@@ -226,7 +235,7 @@ fun SettingsScreen(
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = "JumpCut AI v1.1.0",
+                    text = "JumpCut AI v$appVersion",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = TextMuted

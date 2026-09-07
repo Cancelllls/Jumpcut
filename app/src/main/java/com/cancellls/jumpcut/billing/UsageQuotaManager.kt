@@ -1,7 +1,11 @@
 package com.cancellls.jumpcut.billing
 
+import android.content.ContentValues
 import android.content.Context
+import android.os.Build
+import android.os.Environment
 import android.os.SystemClock
+import android.provider.MediaStore
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -199,7 +203,7 @@ object UsageQuotaManager {
         val currentElapsed = SystemClock.elapsedRealtime()
         val isAnchorValid = anchorElapsed > 0L && currentElapsed >= anchorElapsed
 
-        val count = if (lastDate == today) {
+        var count = if (lastDate == today) {
             prefs.getInt(KEY_DAILY_EXPORT_COUNT, 0)
         } else {
             // Date changed. If device was offline without valid anchor and quota was exhausted,
@@ -210,6 +214,22 @@ object UsageQuotaManager {
                 previousCount
             } else {
                 0
+            }
+        }
+
+        // Anti-Reinstall & Anti-ClearData Protection:
+        // Query persistent MediaStore exports & audit markers for today.
+        // If app was uninstalled/reinstalled or app storage was cleared,
+        // MediaStore in public directories preserves previous exports!
+        if (count < FREE_DAILY_EXPORT_LIMIT) {
+            val persistentCount = getPersistentExportCountToday(context, today)
+            if (persistentCount > count) {
+                count = persistentCount
+                prefs.edit()
+                    .putString(KEY_LAST_EXPORT_DATE, today)
+                    .putInt(KEY_DAILY_EXPORT_COUNT, count)
+                    .apply()
+                Log.d(TAG, "Reconciled $persistentCount exports from persistent storage after reinstall/clear")
             }
         }
 
@@ -245,7 +265,104 @@ object UsageQuotaManager {
             .apply()
         _remainingExports.value = (FREE_DAILY_EXPORT_LIMIT - newCount).coerceAtLeast(0)
 
+        // Write persistent audit marker to MediaStore that survives uninstalls and data clearing
+        recordPersistentAuditMarker(context, today, newCount)
+
+        // Request Google Drive Cloud Auto-Backup sync
+        try {
+            android.app.backup.BackupManager(context).dataChanged()
+        } catch (e: Exception) {
+            Log.d(TAG, "BackupManager notice: ${e.message}")
+        }
+
         // Ensure network anchor is refreshed
         syncOnlineTimeAsync(context, isPro)
+    }
+
+    /**
+     * Queries MediaStore for videos in Movies/JumpCut and audio in Music/JumpCut_Audio
+     * as well as hidden audit markers created today.
+     * Public MediaStore entries survive app uninstallation and "Clear Storage".
+     */
+    private fun getPersistentExportCountToday(context: Context, todayDateStr: String): Int {
+        var count = 0
+        try {
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+            val date = sdf.parse(todayDateStr) ?: return 0
+            val startOfDaySec = date.time / 1000L
+            val endOfDaySec = startOfDaySec + 86400L
+
+            // 1. Query MediaStore Videos in Movies/JumpCut
+            val videoProjection = arrayOf(MediaStore.Video.Media._ID, MediaStore.Video.Media.DATE_ADDED)
+            val videoSelection = "${MediaStore.Video.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.Video.Media.DATE_ADDED} >= ? AND ${MediaStore.Video.Media.DATE_ADDED} < ?"
+            val videoArgs = arrayOf("%Movies/JumpCut%", "$startOfDaySec", "$endOfDaySec")
+            context.contentResolver.query(
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                videoProjection,
+                videoSelection,
+                videoArgs,
+                null
+            )?.use { cursor ->
+                count += cursor.count
+            }
+
+            // 2. Query MediaStore Audio in Music/JumpCut_Audio
+            val audioProjection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.DATE_ADDED)
+            val audioSelection = "${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.Audio.Media.DATE_ADDED} >= ? AND ${MediaStore.Audio.Media.DATE_ADDED} < ?"
+            val audioArgs = arrayOf("%Music/JumpCut_Audio%", "$startOfDaySec", "$endOfDaySec")
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                audioProjection,
+                audioSelection,
+                audioArgs,
+                null
+            )?.use { cursor ->
+                count += cursor.count
+            }
+
+            // 3. Query persistent audit markers (in case user disabled saveToGallery)
+            val auditSelection = "${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ? AND ${MediaStore.MediaColumns.DATE_ADDED} >= ? AND ${MediaStore.MediaColumns.DATE_ADDED} < ?"
+            val auditArgs = arrayOf(".jc_quota_${todayDateStr}_%", "$startOfDaySec", "$endOfDaySec")
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                audioProjection,
+                auditSelection,
+                auditArgs,
+                null
+            )?.use { cursor ->
+                if (cursor.count > count) {
+                    count = cursor.count
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not check persistent MediaStore exports: ${e.message}")
+        }
+        return count
+    }
+
+    /**
+     * Records a persistent lightweight audit marker in public MediaStore so that
+     * even if the app is uninstalled or cleared, the daily quota state remains intact.
+     */
+    private fun recordPersistentAuditMarker(context: Context, todayDateStr: String, exportNumber: Int) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val markerName = ".jc_quota_${todayDateStr}_$exportNumber.m4a"
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, markerName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "audio/mp4")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_MUSIC}/JumpCut_Audio/.audit")
+                    put(MediaStore.MediaColumns.IS_PENDING, 0)
+                }
+                context.contentResolver.insert(
+                    MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+                    values
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not record audit marker: ${e.message}")
+        }
     }
 }
