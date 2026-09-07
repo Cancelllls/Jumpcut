@@ -23,7 +23,8 @@ class MicroCrossfadeAudioProcessor(
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
         if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
-            return AudioProcessor.AudioFormat.NOT_SET
+            fadeSamples = 0L
+            return inputAudioFormat
         }
         fadeSamples = (inputAudioFormat.sampleRate * fadeDurationMs / 1000L) * inputAudioFormat.channelCount
         return inputAudioFormat
@@ -32,6 +33,12 @@ class MicroCrossfadeAudioProcessor(
     override fun queueInput(inputBuffer: ByteBuffer) {
         val remaining = inputBuffer.remaining()
         if (remaining == 0) return
+
+        if (fadeSamples <= 0L) {
+            val outputBuffer = replaceOutputBuffer(remaining)
+            outputBuffer.put(inputBuffer)
+            return
+        }
 
         val outputBuffer = replaceOutputBuffer(remaining)
         val shortBuffer = inputBuffer.asShortBuffer()

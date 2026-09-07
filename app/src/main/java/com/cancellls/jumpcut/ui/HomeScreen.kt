@@ -203,10 +203,10 @@ fun CutterStudioContent(
             .fillMaxSize()
             .background(BgDark)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 20.dp),
+            .padding(horizontal = 18.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Top Header
+        // Studio Top Bar
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -215,7 +215,7 @@ fun CutterStudioContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(40.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(
                             Brush.linearGradient(listOf(PrimaryCyan, ElectricBlue))
@@ -226,15 +226,15 @@ fun CutterStudioContent(
                         imageVector = Icons.Default.ContentCut,
                         contentDescription = "Logo",
                         tint = BgDark,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "JumpCut",
-                            fontSize = 20.sp,
+                            fontSize = 19.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = TextPrimary
                         )
@@ -256,68 +256,83 @@ fun CutterStudioContent(
                     }
                     Text(
                         text = "Lossless Silence Cutter",
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         color = TextSecondary
                     )
                 }
             }
 
-            // Pro Badge / Button
-            Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(if (isProUser) GoldPro else CardDark)
-                    .border(
-                        1.dp,
-                        if (isProUser) GoldPro else CardBorder,
-                        CircleShape
-                    )
-                    .clickable { onOpenPro() }
-                    .padding(horizontal = 14.dp, vertical = 6.dp)
+            // Top Actions: Quota Pill + Pro Badge
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = "Pro",
-                        tint = if (isProUser) BgDark else GoldPro,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = if (isProUser) "PRO ACTIVE" else "PRO",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isProUser) BgDark else GoldPro
-                    )
+                if (!isProUser) {
+                    val hasRemaining = remainingExports > 0
+                    Box(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(if (hasRemaining) CardDark else SilenceRed.copy(alpha = 0.18f))
+                            .border(
+                                1.dp,
+                                if (hasRemaining) CardBorder else SilenceRed.copy(alpha = 0.6f),
+                                CircleShape
+                            )
+                            .clickable { if (!hasRemaining) onOpenPro() }
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (hasRemaining) Icons.Default.Bolt else Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = if (hasRemaining) PrimaryCyan else SilenceRed,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (hasRemaining) "$remainingExports left" else "0 left",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (hasRemaining) TextPrimary else SilenceRed
+                            )
+                        }
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(if (isProUser) GoldPro else CardDark)
+                        .border(
+                            1.dp,
+                            if (isProUser) GoldPro else GoldPro.copy(alpha = 0.5f),
+                            CircleShape
+                        )
+                        .clickable { onOpenPro() }
+                        .padding(horizontal = 12.dp, vertical = 5.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Pro",
+                            tint = if (isProUser) BgDark else GoldPro,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (isProUser) "PRO ACTIVE" else "PRO",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (isProUser) BgDark else GoldPro
+                        )
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
-        // Hero Title
-        Text(
-            text = "Make Your Content\nTight & Engaging",
-            fontSize = 28.sp,
-            lineHeight = 34.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = TextPrimary,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Automatically remove awkward pauses, breaths, and dead air without re-encoding quality loss.",
-            fontSize = 13.sp,
-            color = TextSecondary,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Strategy D: Ad-Blocker Awareness Notice
+        // Ad-Blocker Notice (if detected)
         if (isAdBlockerDetected && !isProUser) {
             com.cancellls.jumpcut.ads.AdBlockerNoticeCard(
                 onUpgradePro = onOpenPro,
@@ -326,177 +341,147 @@ fun CutterStudioContent(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // Free Tier Daily Export Limit Pill (2/2 exports per day)
-        if (!isProUser) {
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(if (remainingExports > 0) SurfaceDark else SilenceRed.copy(alpha = 0.2f))
-                    .border(1.dp, if (remainingExports > 0) CardBorder else SilenceRed, RoundedCornerShape(20.dp))
-                    .clickable { if (remainingExports <= 0) onOpenPro() }
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = if (remainingExports > 0) Icons.Default.Bolt else Icons.Default.Lock,
-                    contentDescription = null,
-                    tint = if (remainingExports > 0) PrimaryCyan else SilenceRed,
-                    modifier = Modifier.size(14.dp)
+        // Master Studio Dropzone Card
+        Card(
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+            border = androidx.compose.foundation.BorderStroke(
+                1.5.dp,
+                Brush.verticalGradient(
+                    listOf(PrimaryCyan.copy(alpha = 0.6f), ElectricBlue.copy(alpha = 0.25f), CardBorder)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = if (remainingExports > 0) "$remainingExports of 2 Free Daily Exports Left" else "Daily Quota Reached (2/2) • Upgrade to Pro",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (remainingExports > 0) TextSecondary else SilenceRed
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        // Big Main Pick Video Card
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(210.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(SurfaceDark)
-                .border(
-                    2.dp,
-                    Brush.linearGradient(listOf(PrimaryCyan, ElectricBlue)),
-                    RoundedCornerShape(24.dp)
-                )
-                .clickable {
-                    singleMediaPicker.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
-                    )
-                }
-                .padding(24.dp),
-            contentAlignment = Alignment.Center
+            ),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Primary Clickable Dropzone Area
                 Box(
                     modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(CardDark)
-                        .border(1.dp, CardBorder, CircleShape),
+                        .fillMaxWidth()
+                        .clickable {
+                            singleMediaPicker.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                            )
+                        }
+                        .padding(top = 26.dp, bottom = 20.dp, start = 20.dp, end = 20.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.VideoCall,
-                        contentDescription = "Pick Video",
-                        tint = PrimaryCyan,
-                        modifier = Modifier.size(34.dp)
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.radialGradient(
+                                        listOf(PrimaryCyan.copy(alpha = 0.2f), CardDark)
+                                    )
+                                )
+                                .border(1.5.dp, PrimaryCyan.copy(alpha = 0.8f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VideoCall,
+                                contentDescription = "Select Video",
+                                tint = PrimaryCyan,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Text(
+                            text = "Select Video to Cut",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = "Hardware accelerated • Zero quality loss",
+                            fontSize = 12.sp,
+                            color = TextSecondary
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Specs Pills
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SpecPill("4K UHD")
+                            SpecPill("60 FPS")
+                            SpecPill("LOSSLESS")
+                        }
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                // Sleek Divider
+                HorizontalDivider(
+                    color = CardBorder.copy(alpha = 0.6f),
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(horizontal = 14.dp)
+                )
 
+                // Quick Action Action Row: 3 Equal Studio Action Tabs
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    StudioActionChip(
+                        icon = Icons.Default.FolderOpen,
+                        label = "Browse Files",
+                        tint = PrimaryCyan,
+                        modifier = Modifier.weight(1f),
+                        onClick = { anyFilePicker.launch("video/*") }
+                    )
+                    StudioActionChip(
+                        icon = Icons.Default.Link,
+                        label = "From Link",
+                        tint = ElectricBlue,
+                        modifier = Modifier.weight(1f),
+                        onClick = { showUrlDialog = true }
+                    )
+                    StudioActionChip(
+                        icon = Icons.Default.Mic,
+                        label = "Audio Memo",
+                        tint = SpeechCyan,
+                        modifier = Modifier.weight(1f),
+                        onClick = { anyFilePicker.launch("audio/*") }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(22.dp))
+
+        // Sensitivity Presets Section
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Select Video to Cut",
-                    fontSize = 18.sp,
+                    text = "Sensitivity Presets",
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Specs Pills
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    SpecPill("4K UHD")
-                    SpecPill("60 FPS")
-                    SpecPill("LOSSLESS")
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // Browse Files & Downloads Button
-            OutlinedButton(
-                onClick = { anyFilePicker.launch("video/*") },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = CardDark,
-                    contentColor = TextPrimary
-                ),
-                border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder))),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 11.dp)
-            ) {
-                Icon(Icons.Default.FolderOpen, contentDescription = "Files", tint = PrimaryCyan, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Browse Files", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            }
-
-            // Download from Link / URL Button
-            OutlinedButton(
-                onClick = { showUrlDialog = true },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = CardDark,
-                    contentColor = TextPrimary
-                ),
-                border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder))),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 11.dp)
-            ) {
-                Icon(Icons.Default.Link, contentDescription = "Link", tint = ElectricBlue, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("From Link", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Calibrated for rhythm",
+                    fontSize = 12.sp,
+                    color = TextMuted
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
-
-        // Secondary Button: Pick Audio File (e.g. Podcasts, Voice Notes)
-        OutlinedButton(
-            onClick = { anyFilePicker.launch("audio/*") },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = CardDark,
-                contentColor = TextPrimary
-            ),
-            border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder)))
-        ) {
-            Icon(Icons.Default.Mic, contentDescription = "Audio", tint = SpeechCyan)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Select Audio or Voice Memo (MP3, M4A, WAV)")
-        }
-
-        Spacer(modifier = Modifier.height(28.dp))
-
-        // Quick Presets Section
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Preset Sensitivity",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Calibrated for speech rhythm",
-                fontSize = 12.sp,
-                color = TextMuted
-            )
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
 
         Row(
             modifier = Modifier
@@ -506,8 +491,8 @@ fun CutterStudioContent(
         ) {
             val displayPresets = if (creatorPresets.isNotEmpty()) creatorPresets else listOf(
                 CreatorPreset("preset_shorts", "Shorts / TikTok", CutSettings(-30f, 250L, 40L), isBuiltIn = true),
-                CreatorPreset("preset_podcast", "Podcast", CutSettings(-34f, 450L, 70L), isBuiltIn = true),
-                CreatorPreset("preset_lecture", "Lecture", CutSettings(-28f, 200L, 30L), isBuiltIn = true)
+                CreatorPreset("preset_podcast", "Podcast Studio", CutSettings(-34f, 450L, 70L), isBuiltIn = true),
+                CreatorPreset("preset_lecture", "Fast Lecture", CutSettings(-28f, 200L, 30L), isBuiltIn = true)
             )
 
             displayPresets.forEach { preset ->
@@ -525,7 +510,7 @@ fun CutterStudioContent(
                     else -> PrimaryCyan
                 }
 
-                Box(modifier = Modifier.width(136.dp)) {
+                Box(modifier = Modifier.width(140.dp)) {
                     PresetCard(
                         title = preset.name,
                         subtitle = "${preset.settings.silenceThresholdDb.toInt()}dB / ${preset.settings.paddingMs}ms",
@@ -556,32 +541,32 @@ fun CutterStudioContent(
             }
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         // Feature Highlights
         FeatureItem(
             icon = Icons.Default.Bolt,
             title = "Hardware Lossless Splice",
-            description = "10-minute 4K videos cut in seconds with zero re-encoding loss."
+            description = "Videos spliced in seconds with zero re-encoding loss."
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         FeatureItem(
             icon = Icons.Default.Security,
             title = "100% On-Device & Private",
-            description = "Zero cloud uploads. Your media never leaves your phone hardware."
+            description = "Zero cloud uploads. Your media never leaves device hardware."
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         FeatureItem(
             icon = Icons.Default.VolumeOff,
             title = "Speech Padding Armor",
-            description = "Natural sentence endings and consonants are preserved smoothly."
+            description = "Natural sentence endings and room tone are preserved smoothly."
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(28.dp))
     }
 
     if (showUrlDialog) {
@@ -645,6 +630,40 @@ fun CutterStudioContent(
 }
 
 @Composable
+fun StudioActionChip(
+    icon: ImageVector,
+    label: String,
+    tint: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(CardDark)
+            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(vertical = 10.dp, horizontal = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(imageVector = icon, contentDescription = label, tint = tint, modifier = Modifier.size(15.dp))
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
 fun SpecPill(text: String) {
     Box(
         modifier = Modifier
@@ -678,12 +697,21 @@ fun PresetCard(
             .background(SurfaceDark)
             .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
             .clickable { onClick() }
-            .padding(12.dp)
+            .padding(14.dp)
     ) {
         Column {
-            Icon(imageVector = icon, contentDescription = title, tint = accentColor, modifier = Modifier.size(22.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(text = title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(accentColor.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(imageVector = icon, contentDescription = title, tint = accentColor, modifier = Modifier.size(18.dp))
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(text = title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+            Spacer(modifier = Modifier.height(2.dp))
             Text(text = subtitle, fontSize = 10.sp, color = TextSecondary)
         }
     }

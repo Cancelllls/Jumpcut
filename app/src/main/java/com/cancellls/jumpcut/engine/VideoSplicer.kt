@@ -67,9 +67,11 @@ object VideoSplicer {
         val zoomEffects = Effects(audioProcessors, listOf(zoomEffect))
 
         val editedMediaItems = validSegments.mapIndexed { index, seg ->
+            val start = maxOf(0L, seg.startMs)
+            val end = maxOf(start + 50L, seg.endMs)
             val clipping = MediaItem.ClippingConfiguration.Builder()
-                .setStartPositionMs(seg.startMs)
-                .setEndPositionMs(seg.endMs)
+                .setStartPositionMs(start)
+                .setEndPositionMs(end)
                 .setStartsAtKeyFrame(false)
                 .build()
 
@@ -108,8 +110,19 @@ object VideoSplicer {
                 exportResult: ExportResult,
                 exportException: ExportException
             ) {
-                Log.e(TAG, "Export failed", exportException)
-                trySend(SplicerProgress.Error(exportException))
+                Log.e(
+                    TAG,
+                    "Export failed: code=${exportException.errorCode}, name=${exportException.errorCodeName}, msg=${exportException.message}",
+                    exportException
+                )
+                val detailedMsg = when (exportException.errorCode) {
+                    ExportException.ERROR_CODE_MUXING_TIMEOUT ->
+                        "Muxer timed out while encoding video cuts."
+                    ExportException.ERROR_CODE_MUXING_FAILED ->
+                        "Hardware muxer error: ${exportException.cause?.message ?: exportException.message}"
+                    else -> exportException.message ?: "Export failed (${exportException.errorCodeName})"
+                }
+                trySend(SplicerProgress.Error(Exception(detailedMsg, exportException)))
                 close()
             }
         }
@@ -118,9 +131,10 @@ object VideoSplicer {
             .setEnableFallback(true)
             .build()
 
+        // Disable artificial watchdog timeout (C.TIME_UNSET) to avoid Muxer errors on Snapdragon/Qualcomm chipsets
         val transformer = Transformer.Builder(context)
             .setEncoderFactory(encoderFactory)
-            .setMaxDelayBetweenMuxerSamplesMs(10_000L)
+            .setMaxDelayBetweenMuxerSamplesMs(androidx.media3.common.C.TIME_UNSET)
             .addListener(listener)
             .build()
 
