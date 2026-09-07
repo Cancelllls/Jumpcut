@@ -3,18 +3,22 @@ package com.cancellls.jumpcut.ui
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,7 +36,9 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.cancellls.jumpcut.model.ProcessingState
+import com.cancellls.jumpcut.storage.MediaSaver
 import com.cancellls.jumpcut.theme.*
+import kotlinx.coroutines.launch
 import java.io.File
 
 @OptIn(UnstableApi::class)
@@ -48,6 +54,7 @@ fun ExportScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(BgDark)
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -97,7 +104,7 @@ fun ExportScreen(
                     onClick = onCancelClick,
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = SilenceRed),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(SilenceRed, SilenceRed)))
+                    border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(brush = Brush.horizontalGradient(listOf(SilenceRed, SilenceRed)))
                 ) {
                     Icon(Icons.Default.Close, contentDescription = "Cancel")
                     Spacer(modifier = Modifier.width(8.dp))
@@ -107,7 +114,33 @@ fun ExportScreen(
 
             is ProcessingState.Exported -> {
                 val outputFile = File(state.outputPath)
+                val isVideo = outputFile.name.endsWith(".mp4", true) || outputFile.name.endsWith(".mov", true)
                 val fileSizeMb = String.format(java.util.Locale.US, "%.1f MB", outputFile.length() / (1024.0 * 1024.0))
+
+                var showStorageInfoDialog by remember { mutableStateOf(false) }
+                val coroutineScope = rememberCoroutineScope()
+                var isSavingToFolder by remember { mutableStateOf(false) }
+                var savedFolderName by remember { mutableStateOf<String?>(null) }
+
+                val saveDocLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.CreateDocument(
+                        if (isVideo) "video/mp4" else "audio/mp4"
+                    )
+                ) { targetUri: Uri? ->
+                    if (targetUri != null) {
+                        coroutineScope.launch {
+                            isSavingToFolder = true
+                            val ok = MediaSaver.saveToCustomUri(context, outputFile, targetUri)
+                            isSavingToFolder = false
+                            if (ok) {
+                                savedFolderName = targetUri.lastPathSegment?.substringAfterLast(":") ?: "chosen folder"
+                                Toast.makeText(context, "Export saved to files successfully!", Toast.LENGTH_LONG).show()
+                            } else {
+                                Toast.makeText(context, "Failed to save file to selected location", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }
 
                 // Success Icon
                 Box(
@@ -197,31 +230,97 @@ fun ExportScreen(
                     )
                 }
 
-                // Gallery Saved Badge
-                Row(
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Android 16 Scoped Storage Status Card
+                Card(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(CardDark)
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Saved to Gallery & Projects Library",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = GreenSuccess
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable { showStorageInfoDialog = true },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                    border = CardDefaults.outlinedCardBorder().copy(
+                        brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder))
                     )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(GreenSuccess.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = GreenSuccess,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Saved to Gallery (Movies/JumpCut)",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "Android 16 Scoped Storage • Zero permissions required",
+                                    fontSize = 10.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Storage Info",
+                            tint = PrimaryCyan,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                if (savedFolderName != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(PrimaryCyan.copy(alpha = 0.15f))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.FolderSpecial, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Also saved to: $savedFolderName",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = PrimaryCyan
+                        )
+                    }
+                }
 
-                // Action: Share Video
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Primary Action: Save to Files / Choose Folder (SAF)
                 Button(
                     onClick = {
-                        val isVideo = outputFile.name.endsWith(".mp4", true) || outputFile.name.endsWith(".mov", true)
-                        com.cancellls.jumpcut.storage.MediaSaver.shareMedia(context, outputFile, isVideo)
+                        saveDocLauncher.launch(outputFile.name)
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -237,14 +336,64 @@ fun ExportScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Share, contentDescription = "Share", tint = BgDark)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Share to CapCut / TikTok / Gallery", fontWeight = FontWeight.Bold, color = BgDark)
+                            if (isSavingToFolder) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = BgDark, strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Saving to Folder...", fontWeight = FontWeight.Bold, color = BgDark)
+                            } else {
+                                Icon(Icons.Default.FolderOpen, contentDescription = null, tint = BgDark)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Save to Files / Choose Folder (SAF)", fontWeight = FontWeight.Bold, color = BgDark)
+                            }
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
+
+                // Secondary Row: Play in External Player & Share
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            MediaSaver.openMediaInExternalApp(context, outputFile, isVideo)
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
+                        border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
+                            brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder))
+                        )
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Open Player", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            MediaSaver.shareMedia(context, outputFile, isVideo)
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
+                        border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
+                            brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder))
+                        )
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, tint = ElectricBlue, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Share Video", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Action: Return to Studio & Projects
                 TextButton(
@@ -252,6 +401,51 @@ fun ExportScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Done • Return to Studio", color = TextSecondary, fontSize = 14.sp)
+                }
+
+                if (showStorageInfoDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showStorageInfoDialog = false },
+                        containerColor = SurfaceDark,
+                        icon = {
+                            Icon(Icons.Default.Security, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(32.dp))
+                        },
+                        title = {
+                            Text("Android 16 Storage & Permissions", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    "On modern Android (13, 14, 15, and 16), Google permanently removed legacy 'Storage / Files' write permissions to protect your privacy.",
+                                    color = TextSecondary,
+                                    fontSize = 12.sp,
+                                    lineHeight = 18.sp
+                                )
+                                Text(
+                                    "1. Automatic Gallery Save: JumpCut uses Android Scoped Storage to save directly to 'Movies/JumpCut' in Google Photos or your phone's Gallery without needing any system permission prompts.",
+                                    color = TextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    lineHeight = 18.sp
+                                )
+                                Text(
+                                    "2. Custom Folder Save: Use 'Save to Files / Choose Folder' to save directly to Downloads, Documents, or an SD card using Android's native system file picker.",
+                                    color = TextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = { showStorageInfoDialog = false },
+                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan)
+                            ) {
+                                Text("Got It", color = BgDark, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    )
                 }
             }
 

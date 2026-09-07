@@ -1,7 +1,12 @@
 package com.cancellls.jumpcut.ui
 
 import android.graphics.BitmapFactory
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -477,6 +482,28 @@ fun ProjectPlayerDialog(
         onDispose { exoPlayer.release() }
     }
 
+    val coroutineScope = rememberCoroutineScope()
+    var isSaving by remember { mutableStateOf(false) }
+
+    val saveDocLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument(
+            if (project.isVideo) "video/mp4" else "audio/mp4"
+        )
+    ) { targetUri: Uri? ->
+        if (targetUri != null) {
+            coroutineScope.launch {
+                isSaving = true
+                val ok = MediaSaver.saveToCustomUri(context, file, targetUri)
+                isSaving = false
+                if (ok) {
+                    Toast.makeText(context, "Saved to your chosen folder!", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, "Failed to save file", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -561,18 +588,78 @@ fun ProjectPlayerDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Bottom Share Action Bar
+                // Save to Files (SAF) Button
                 Button(
-                    onClick = onShare,
+                    onClick = {
+                        saveDocLauncher.launch(file.name)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan)
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    contentPadding = PaddingValues()
                 ) {
-                    Icon(Icons.Default.Share, contentDescription = null, tint = BgDark)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Share to CapCut / TikTok / Gallery", color = BgDark, fontWeight = FontWeight.Bold)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Brush.horizontalGradient(listOf(PrimaryCyan, ElectricBlue))),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (isSaving) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = BgDark, strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Saving to Folder...", color = BgDark, fontWeight = FontWeight.Bold)
+                            } else {
+                                Icon(Icons.Default.FolderOpen, contentDescription = null, tint = BgDark)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Save to Files / Choose Folder (SAF)", color = BgDark, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Secondary Action Row: Open in External Player & Share
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            MediaSaver.openMediaInExternalApp(context, file, project.isVideo)
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
+                        border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
+                            brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder))
+                        )
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Open Player", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    OutlinedButton(
+                        onClick = onShare,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
+                        border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
+                            brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder))
+                        )
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, tint = ElectricBlue, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Share", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         }

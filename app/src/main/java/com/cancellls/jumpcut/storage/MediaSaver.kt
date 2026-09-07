@@ -32,9 +32,9 @@ object MediaSaver {
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val collection = if (isVideo) {
-                    MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI
                 } else {
-                    MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
                 }
 
                 val relativePath = if (isVideo) {
@@ -50,7 +50,19 @@ object MediaSaver {
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
                 }
 
-                val uri = context.contentResolver.insert(collection, values)
+                var uri = try {
+                    context.contentResolver.insert(collection, values)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Primary collection insertion failed, attempting fallback", e)
+                    null
+                }
+
+                // Fallback to Downloads folder if Movies/Music was blocked by manufacturer ROM
+                if (uri == null) {
+                    values.put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/$folderName")
+                    uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                }
+
                 if (uri != null) {
                     context.contentResolver.openOutputStream(uri)?.use { outStream ->
                         FileInputStream(sourceFile).use { inStream ->
@@ -61,6 +73,17 @@ object MediaSaver {
                     values.clear()
                     values.put(MediaStore.MediaColumns.IS_PENDING, 0)
                     context.contentResolver.update(uri, values, null, null)
+
+                    // Notify media scanner for instant indexing across Xiaomi/MIUI/Samsung galleries
+                    try {
+                        android.media.MediaScannerConnection.scanFile(
+                            context,
+                            arrayOf(sourceFile.absolutePath),
+                            arrayOf(mimeType),
+                            null
+                        )
+                    } catch (_: Exception) {}
+
                     Log.d(TAG, "Saved media to gallery URI: $uri")
                     return@withContext uri
                 }
@@ -88,6 +111,47 @@ object MediaSaver {
             Log.e(TAG, "Failed to save media to gallery", e)
         }
         null
+    }
+
+    suspend fun saveToCustomUri(
+        context: Context,
+        sourceFile: File,
+        targetUri: Uri
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (!sourceFile.exists()) return@withContext false
+        try {
+            context.contentResolver.openOutputStream(targetUri)?.use { outStream ->
+                FileInputStream(sourceFile).use { inStream ->
+                    inStream.copyTo(outStream)
+                }
+            }
+            Log.d(TAG, "Successfully copied export to custom URI: $targetUri")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to copy export to custom URI $targetUri", e)
+            false
+        }
+    }
+
+    fun openMediaInExternalApp(context: Context, file: File, isVideo: Boolean) {
+        try {
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+            val mimeType = if (isVideo) "video/*" else "audio/*"
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, mimeType)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            val chooser = Intent.createChooser(intent, "Play Exported Media")
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(chooser)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to open media in player", e)
+        }
     }
 
     fun shareMedia(context: Context, file: File, isVideo: Boolean) {
