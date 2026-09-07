@@ -59,15 +59,15 @@ jobs:
           mkdir -p release_assets
           # Find and copy signed release apk
           if [ -f app/build/outputs/apk/release/app-release.apk ]; then
-            cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-v1.5.0-release.apk
+            cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-v1.5.1-release.apk
             cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-release.apk
           elif [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-v1.5.0-release.apk
+            cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-v1.5.1-release.apk
             cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-release.apk
           fi
           # Copy debug apk
           if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-v1.5.0-debug.apk
+            cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-v1.5.1-debug.apk
             cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-debug.apk
           fi
           echo "Release assets ready:"
@@ -92,27 +92,30 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.5.0' }}
-          name: "JumpCut AI ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.5.0' }}"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.5.1' }}
+          name: "JumpCut AI ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.5.1' }}"
           draft: false
           prerelease: false
           body: |
-            ## 🚀 JumpCut AI v1.5.0 (Mobile NLE Studio & Google Play Billing Hardening)
+            ## 🚀 JumpCut AI v1.5.1 (Media3 Pipeline Fixes, Auto-Zoom Jumpcuts & Android 16 SAF)
             
-            ### 🎬 What's New in v1.5.0:
-            - **Pinned Mobile NLE Dual-Stage Layout**: Sticky upper monitor with 16:9 player, transport HUD (00:00 / 00:00 timecodes, 1.0x-2.0x playback speeds, Hold-for-Raw auditioning), and docked interactive waveform that never scrolls away.
-            - **Precision Timecode Ruler**: Top-mounted timestamp ruler bar (`00:10`, `00:20`...) with major and minor tick subdivisions, visual cut (red) / keep (green) blocks, and draggable needle scrubber.
-            - **3-Tab Modular Control Deck**:
-              - **Tuning Tab**: Live speech floor impact HUD (`X cuts • -YY:ZZ`), decibel sensitivity slider, minimum silence length slider, and word padding armor.
-              - **Presets Tab**: Rhythm profile bank (Viral Shorts, Podcast Studio, Fast Lecture, Vlog & Story) with custom preset creation.
-              - **Pauses Tab**: Granular segment inspector listing exact millisecond durations with tap-to-seek and individual CUT/KEEP toggles.
-            - **Creator Studio Bento Grid**: Obsidian slate dashboard with dynamic studio metrics (Time Saved, Pauses Cut, Lossless Passthrough) and 2x2 Quick Tools (Magic Auto-Cut, Voice Floor, EDL/XML Studio, Batch Splicer).
-            - **Zero-Bypass Google Play Billing**: Hardened client-side billing integration requiring authentic Google Play Store receipt verification and session sanitization.
-            - **Snapdragon 865 / Hardware Muxer Stabilization**: Robust muxer fallback pipeline preventing export crashes on Xiaomi Mi 10T and high-bitrate Android devices.
+            ### 🎬 What's New in v1.5.1:
+            - **Fixed "Failed to load assets" (Media3 Asset Loader Error)**:
+              - Clamped segment clipping boundaries strictly within total container duration, eliminating EOF crashes caused by word padding armor.
+              - Allocated dedicated per-clip `MicroCrossfadeAudioProcessor` instances to prevent `IllegalStateException: Audio processor is already ended` across sequence boundaries.
+              - Uniform video frame processing for Auto-Zoom Jumpcuts (1.0x identity on even cuts, 1.12x punch-ins on odd cuts) to preserve OpenGL context integrity.
+              - Enabled hardware decoder fallback with detailed root-cause exception reporting.
+            - **Android 16 Scoped Storage & SAF Folder Picker**:
+              - Added direct **Save to Files / Choose Folder** using Storage Access Framework (`ActivityResultContracts.CreateDocument`).
+              - Save directly to Downloads, SD Card, or any custom folder without `WRITE_EXTERNAL_STORAGE` permission.
+              - External video player launcher support directly from the export completion screen.
+            - **Export Bottom Sheet UX Improvements**:
+              - Added `skipPartiallyExpanded` and smooth vertical scrolling.
+              - Fully clickable setting card rows for effortless toggling on mobile touchscreens.
             
             ### 📱 Download & Install:
-            - **`JumpCut-v1.5.0-release.apk`** / **`JumpCut-release.apk`** — Production Signed Release (Direct APK installer)
-            - **`JumpCut-v1.5.0-debug.apk`** / **`JumpCut-debug.apk`** — Debug Build with extended developer logging
+            - **`JumpCut-v1.5.1-release.apk`** / **`JumpCut-release.apk`** — Production Signed Release (Direct APK installer)
+            - **`JumpCut-v1.5.1-debug.apk`** / **`JumpCut-debug.apk`** — Debug Build with extended developer logging
           files: release_assets/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
