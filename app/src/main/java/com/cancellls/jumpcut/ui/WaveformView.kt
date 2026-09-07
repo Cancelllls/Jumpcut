@@ -146,11 +146,18 @@ fun WaveformView(
                             }
                         }
                         .pointerInput(totalDurationMs, zoomScale) {
+                            var lastHapticSegmentId: Int? = null
                             detectDragGestures { change, _ ->
                                 change.consume()
                                 if (totalDurationMs > 0 && size.width > 0) {
                                     val fraction = (change.position.x / size.width).coerceIn(0f, 1f)
-                                    onSeek((fraction * totalDurationMs).toLong())
+                                    val seekMs = (fraction * totalDurationMs).toLong()
+                                    val currentSeg = segments.firstOrNull { seekMs in it.startMs..it.endMs }
+                                    if (currentSeg?.id != lastHapticSegmentId) {
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        lastHapticSegmentId = currentSeg?.id
+                                    }
+                                    onSeek(seekMs)
                                 }
                             }
                         }

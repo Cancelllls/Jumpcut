@@ -36,6 +36,7 @@ fun ExportBottomSheet(
     var extractAudioOnly by remember { mutableStateOf(initialConfig.extractAudioOnly || !isVideo) }
     var saveToGallery by remember { mutableStateOf(initialConfig.saveToGallery) }
     var autoZoomJumpcuts by remember { mutableStateOf(initialConfig.autoZoomJumpcuts) }
+    var microCrossfade by remember { mutableStateOf(initialConfig.microCrossfade) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -276,6 +277,65 @@ fun ExportBottomSheet(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
+            // Room Tone Micro-Crossfade (Pro Audio)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CardDark)
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.GraphicEq,
+                        contentDescription = null,
+                        tint = PrimaryCyan,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Room Tone Micro-Crossfade",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(PrimaryCyan.copy(alpha = 0.2f))
+                                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                            ) {
+                                Text("PRO AUDIO", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = PrimaryCyan)
+                            }
+                        }
+                        Text(
+                            text = "Smooth 15ms cosine seams eliminate clicks and hiss drops",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+                Switch(
+                    checked = microCrossfade,
+                    onCheckedChange = { microCrossfade = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = TextPrimary,
+                        checkedTrackColor = PrimaryCyan,
+                        uncheckedTrackColor = CardBorder
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             // Save to Gallery switch
             Row(
                 modifier = Modifier
@@ -331,7 +391,8 @@ fun ExportBottomSheet(
                         ExportConfig(
                             extractAudioOnly = extractAudioOnly,
                             saveToGallery = saveToGallery,
-                            autoZoomJumpcuts = autoZoomJumpcuts
+                            autoZoomJumpcuts = autoZoomJumpcuts,
+                            microCrossfade = microCrossfade
                         )
                     )
                 },

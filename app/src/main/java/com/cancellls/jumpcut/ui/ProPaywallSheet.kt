@@ -20,13 +20,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cancellls.jumpcut.billing.BillingManager
 import com.cancellls.jumpcut.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProPaywallSheet(
     onDismiss: () -> Unit,
-    onUnlock: () -> Unit
+    onPurchasePlan: (String) -> Unit,
+    onRestorePurchases: () -> Unit
 ) {
     var selectedPlan by remember { mutableStateOf("lifetime") } // "monthly" or "lifetime"
 
@@ -127,7 +129,8 @@ fun ProPaywallSheet(
             // Purchase Button
             Button(
                 onClick = {
-                    onUnlock()
+                    val productId = if (selectedPlan == "lifetime") BillingManager.PRODUCT_LIFETIME else BillingManager.PRODUCT_MONTHLY
+                    onPurchasePlan(productId)
                     onDismiss()
                 },
                 modifier = Modifier
@@ -164,7 +167,10 @@ fun ProPaywallSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center
             ) {
-                TextButton(onClick = { onUnlock(); onDismiss() }) {
+                TextButton(onClick = {
+                    onRestorePurchases()
+                    onDismiss()
+                }) {
                     Text(text = "Restore Purchase", fontSize = 12.sp, color = TextSecondary)
                 }
                 Text(text = "•", fontSize = 12.sp, color = TextMuted, modifier = Modifier.padding(horizontal = 6.dp, vertical = 12.dp))

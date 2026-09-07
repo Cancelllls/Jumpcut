@@ -17,6 +17,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import com.cancellls.jumpcut.ads.AdManager
+import com.cancellls.jumpcut.billing.BillingManager
 import com.cancellls.jumpcut.model.ProcessingState
 import com.cancellls.jumpcut.theme.BgDark
 import com.cancellls.jumpcut.theme.JumpCutTheme
@@ -31,10 +33,16 @@ import com.cancellls.jumpcut.ui.ProPaywallSheet
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
+    private lateinit var billingManager: BillingManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        AdManager.initialize(this)
+        billingManager = BillingManager(this) {
+            viewModel.unlockPro()
+        }
 
         // Handle incoming shared media or links
         if (intent?.action == Intent.ACTION_SEND) {
@@ -156,6 +164,7 @@ class MainActivity : ComponentActivity() {
                                     skipSilencePreview = skipSilencePreview,
                                     exportConfig = exportConfig,
                                     creatorPresets = creatorPresets,
+                                    isProUser = isProUser,
                                     onSettingsChanged = { viewModel.updateSettings(it) },
                                     onToggleSkipSilence = { viewModel.toggleSkipSilencePreview(it) },
                                     onToggleSegment = { segId -> viewModel.toggleSegment(segId) },
@@ -181,7 +190,15 @@ class MainActivity : ComponentActivity() {
                         is ProcessingState.Error -> {
                             ExportScreen(
                                 state = state,
-                                onDoneClick = { viewModel.reset() },
+                                onDoneClick = {
+                                    if (state is ProcessingState.Exported) {
+                                        AdManager.showPostExportInterstitial(this@MainActivity, isProUser) {
+                                            viewModel.reset()
+                                        }
+                                    } else {
+                                        viewModel.reset()
+                                    }
+                                },
                                 onCancelClick = { viewModel.reset() }
                             )
                         }
@@ -191,11 +208,21 @@ class MainActivity : ComponentActivity() {
                 if (showProPaywall) {
                     ProPaywallSheet(
                         onDismiss = { showProPaywall = false },
-                        onUnlock = { viewModel.unlockPro() }
+                        onPurchasePlan = { plan ->
+                            billingManager.launchPurchaseFlow(this@MainActivity, plan)
+                        },
+                        onRestorePurchases = {
+                            billingManager.restorePurchases()
+                        }
                     )
                 }
             }
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        billingManager.destroy()
     }
 }

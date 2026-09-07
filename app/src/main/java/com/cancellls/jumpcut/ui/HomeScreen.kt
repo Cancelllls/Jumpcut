@@ -31,6 +31,7 @@ import com.cancellls.jumpcut.model.CreatorPreset
 import com.cancellls.jumpcut.model.CutSettings
 import com.cancellls.jumpcut.model.SavedProject
 import com.cancellls.jumpcut.theme.*
+import com.cancellls.jumpcut.ads.BannerAdComposable
 
 @Composable
 fun HomeScreen(
@@ -53,11 +54,13 @@ fun HomeScreen(
     Scaffold(
         containerColor = BgDark,
         bottomBar = {
-            NavigationBar(
-                containerColor = SurfaceDark,
-                contentColor = TextPrimary,
-                tonalElevation = 8.dp
-            ) {
+            Column {
+                BannerAdComposable(isProUser = isProUser)
+                NavigationBar(
+                    containerColor = SurfaceDark,
+                    contentColor = TextPrimary,
+                    tonalElevation = 8.dp
+                ) {
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
@@ -126,6 +129,7 @@ fun HomeScreen(
                 )
             }
         }
+    }
     ) { innerPadding ->
         Box(
             modifier = Modifier

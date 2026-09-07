@@ -39,7 +39,8 @@ object VideoSplicer {
         speechSegments: List<CutSegment>,
         outputFile: File,
         extractAudioOnly: Boolean = false,
-        autoZoomJumpcuts: Boolean = false
+        autoZoomJumpcuts: Boolean = false,
+        microCrossfade: Boolean = true
     ): Flow<SplicerProgress> = callbackFlow {
         val validSegments = speechSegments.filter { (it.endMs - it.startMs) >= 80L }
         if (validSegments.isEmpty()) {
@@ -55,7 +56,15 @@ object VideoSplicer {
         val zoomEffect = ScaleAndRotateTransformation.Builder()
             .setScale(1.12f, 1.12f)
             .build()
-        val zoomEffects = Effects(emptyList(), listOf(zoomEffect))
+
+        val audioProcessors: List<androidx.media3.common.audio.AudioProcessor> = if (microCrossfade) {
+            listOf(MicroCrossfadeAudioProcessor(15L))
+        } else {
+            emptyList()
+        }
+
+        val baseEffects = Effects(audioProcessors, emptyList())
+        val zoomEffects = Effects(audioProcessors, listOf(zoomEffect))
 
         val editedMediaItems = validSegments.mapIndexed { index, seg ->
             val clipping = MediaItem.ClippingConfiguration.Builder()
@@ -73,9 +82,11 @@ object VideoSplicer {
                 .setRemoveVideo(extractAudioOnly)
                 .setFlattenForSlowMotion(false)
 
-            // Alternate punch-in zoom on every odd speech cut
+            // Alternate punch-in zoom on every odd speech cut with micro-crossfade
             if (!extractAudioOnly && autoZoomJumpcuts && (index % 2 == 1)) {
                 builder.setEffects(zoomEffects)
+            } else if (audioProcessors.isNotEmpty()) {
+                builder.setEffects(baseEffects)
             }
 
             builder.build()

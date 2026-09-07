@@ -314,7 +314,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     speechSegments = keptSegments,
                     outputFile = outputFile,
                     extractAudioOnly = isAudioOnly,
-                    autoZoomJumpcuts = config.autoZoomJumpcuts
+                    autoZoomJumpcuts = config.autoZoomJumpcuts,
+                    microCrossfade = config.microCrossfade
                 ).collect { progress ->
                     when (progress) {
                         is SplicerProgress.Progress -> {

@@ -43,6 +43,10 @@ import com.cancellls.jumpcut.model.MediaItem
 import com.cancellls.jumpcut.theme.*
 import kotlinx.coroutines.delay
 import java.util.Locale
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.input.pointer.pointerInput
+import com.cancellls.jumpcut.ads.BannerAdComposable
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -57,6 +61,7 @@ fun EditorScreen(
     skipSilencePreview: Boolean,
     exportConfig: ExportConfig,
     creatorPresets: List<CreatorPreset> = emptyList(),
+    isProUser: Boolean = false,
     onSettingsChanged: (CutSettings) -> Unit,
     onToggleSkipSilence: (Boolean) -> Unit,
     onToggleSegment: (Int) -> Unit,
@@ -84,6 +89,7 @@ fun EditorScreen(
     var isPlaying by remember { mutableStateOf(false) }
     var currentPositionMs by remember { mutableLongStateOf(0L) }
     var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
+    var isComparingRaw by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Parameters, 1: Segments List
     var showExportSheet by remember { mutableStateOf(false) }
     var showSavePresetDialog by remember { mutableStateOf(false) }
@@ -116,13 +122,13 @@ fun EditorScreen(
         exoPlayer.playbackParameters = PlaybackParameters(playbackSpeed)
     }
 
-    // Playback loop tracking position & auto-skipping silence
-    LaunchedEffect(isPlaying, skipSilencePreview, segments) {
+    // Playback loop tracking position & auto-skipping silence (suspended during A/B raw comparison)
+    LaunchedEffect(isPlaying, skipSilencePreview, isComparingRaw, segments) {
         while (isPlaying) {
             val pos = exoPlayer.currentPosition
             currentPositionMs = pos
 
-            if (skipSilencePreview) {
+            if (skipSilencePreview && !isComparingRaw) {
                 val currentSilence = segments.firstOrNull {
                     it.isSilence && !it.isExcluded && pos in it.startMs until it.endMs
                 }
@@ -291,6 +297,25 @@ fun EditorScreen(
                         )
                     }
                 }
+
+                // Raw Auditioning Active Indicator Badge
+                if (isComparingRaw) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(10.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(SilenceRed.copy(alpha = 0.9f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "AUDITIONING RAW",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = TextPrimary
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -304,26 +329,23 @@ fun EditorScreen(
                 Text(
                     text = "${formatTime(currentPositionMs)} / ${formatTime(originalDurationMs)}",
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     color = TextPrimary
                 )
 
-                // Playback speed chips
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    listOf(1.0f, 1.25f, 1.5f, 2.0f).forEach { speed ->
+                // Speed Selector Chips
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf(1.0f, 1.5f, 2.0f).forEach { speed ->
                         val isSelected = playbackSpeed == speed
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(if (isSelected) PrimaryCyan else CardDark)
                                 .clickable {
-                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     playbackSpeed = speed
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 }
-                                .padding(horizontal = 7.dp, vertical = 4.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
                                 text = "${speed}x",
@@ -338,7 +360,7 @@ fun EditorScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Skip Silence in Preview Row
+            // Skip Silence in Preview & A/B Audition Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -348,7 +370,10 @@ fun EditorScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Icon(
                         imageVector = Icons.Default.FastForward,
                         contentDescription = null,
@@ -357,22 +382,63 @@ fun EditorScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Skip Silence in Preview",
+                        text = "Skip Silence",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = if (skipSilencePreview) PrimaryCyan else TextSecondary
                     )
                 }
 
-                Switch(
-                    checked = skipSilencePreview,
-                    onCheckedChange = { onToggleSkipSilence(it) },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = TextPrimary,
-                        checkedTrackColor = PrimaryCyan,
-                        uncheckedTrackColor = CardDark
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Tactile Hold to Audition Raw A/B Button
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isComparingRaw) SilenceRed else CardDark)
+                            .border(1.dp, if (isComparingRaw) SilenceRed else CardBorder, RoundedCornerShape(8.dp))
+                            .pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        awaitFirstDown()
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        isComparingRaw = true
+                                        waitForUpOrCancellation()
+                                        isComparingRaw = false
+                                    }
+                                }
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (isComparingRaw) Icons.Default.Hearing else Icons.Default.GraphicEq,
+                                contentDescription = "A/B Raw",
+                                tint = if (isComparingRaw) TextPrimary else TextSecondary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isComparingRaw) "AUDITIONING RAW" else "HOLD FOR RAW",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isComparingRaw) TextPrimary else TextSecondary
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Switch(
+                        checked = skipSilencePreview,
+                        onCheckedChange = { onToggleSkipSilence(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = TextPrimary,
+                            checkedTrackColor = PrimaryCyan,
+                            uncheckedTrackColor = CardDark
+                        )
                     )
-                )
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -642,40 +708,47 @@ fun EditorScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
 
-        // Bottom Fixed Export Button
-        Box(
+        // Bottom Action Bar & Monetization Banner
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(SurfaceDark)
-                .padding(16.dp)
         ) {
-            Button(
-                onClick = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    showExportSheet = true
-                },
+            BannerAdComposable(isProUser = isProUser)
+
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                contentPadding = PaddingValues()
+                    .padding(16.dp)
             ) {
-                Box(
+                Button(
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        showExportSheet = true
+                    },
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(Brush.horizontalGradient(listOf(PrimaryCyan, ElectricBlue))),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    contentPadding = PaddingValues()
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.ContentCut, contentDescription = "Export", tint = BgDark)
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "Export Clean Media (${formatTime(cutDurationMs)})",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = BgDark
-                        )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Brush.horizontalGradient(listOf(PrimaryCyan, ElectricBlue))),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.ContentCut, contentDescription = "Export", tint = BgDark)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Export Clean Media (${formatTime(cutDurationMs)})",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BgDark
+                            )
+                        }
                     }
                 }
             }

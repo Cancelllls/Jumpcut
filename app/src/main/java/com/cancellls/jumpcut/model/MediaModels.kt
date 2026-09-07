@@ -27,7 +27,9 @@ data class ExportConfig(
     val extractAudioOnly: Boolean = false,
     val saveToGallery: Boolean = true,
     val boostVoice: Boolean = false,
-    val autoZoomJumpcuts: Boolean = false
+    val autoZoomJumpcuts: Boolean = false,
+    val microCrossfade: Boolean = true,
+    val silenceTimeWarp: Boolean = false
 )
 
 data class SavedProject(
