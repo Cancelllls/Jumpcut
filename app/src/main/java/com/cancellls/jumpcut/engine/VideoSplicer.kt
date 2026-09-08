@@ -41,7 +41,10 @@ object VideoSplicer {
         totalDurationMs: Long = 0L,
         extractAudioOnly: Boolean = false,
         autoZoomJumpcuts: Boolean = false,
-        microCrossfade: Boolean = true
+        microCrossfade: Boolean = true,
+        studioAudioLeveling: Boolean = true,
+        roomToneSmoothing: Boolean = true,
+        ambientNoiseFloorDb: Float = -40f
     ): Flow<SplicerProgress> = callbackFlow {
         val maxDuration = if (totalDurationMs > 0L) totalDurationMs else Long.MAX_VALUE
         val validSegments = speechSegments.mapNotNull { seg ->
@@ -116,8 +119,21 @@ object VideoSplicer {
                 emptyList()
             }
 
-            if (videoEffects.isNotEmpty()) {
-                builder.setEffects(Effects(emptyList(), videoEffects))
+            val audioProcessors = if (studioAudioLeveling || roomToneSmoothing || microCrossfade) {
+                listOf(
+                    StudioAudioProcessor(
+                        segmentDurationMs = seg.durationMs,
+                        levelingEnabled = studioAudioLeveling,
+                        roomToneSmoothingEnabled = roomToneSmoothing,
+                        ambientNoiseFloorDb = ambientNoiseFloorDb
+                    )
+                )
+            } else {
+                emptyList()
+            }
+
+            if (audioProcessors.isNotEmpty() || videoEffects.isNotEmpty()) {
+                builder.setEffects(Effects(audioProcessors, videoEffects))
             }
 
             builder.build()

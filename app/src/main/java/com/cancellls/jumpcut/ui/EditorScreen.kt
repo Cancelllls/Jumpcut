@@ -734,6 +734,91 @@ fun EditorScreen(
                                     )
                                 )
                             }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Studio Speech Leveler Toggle (-14 LUFS)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(CardDark)
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "Studio Speech Leveler",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextPrimary
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(GoldPro.copy(alpha = 0.2f))
+                                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                                        ) {
+                                            Text("-14 LUFS", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = GoldPro)
+                                        }
+                                    }
+                                    Text(
+                                        text = if (cutSettings.studioAudioLeveling) "Auto-levels dialogue with -1 dB peak limiter" else "Raw recorded volume dynamics",
+                                        fontSize = 9.sp,
+                                        color = TextSecondary
+                                    )
+                                }
+                                Switch(
+                                    checked = cutSettings.studioAudioLeveling,
+                                    onCheckedChange = { onSettingsChanged(cutSettings.copy(studioAudioLeveling = it)) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = GoldPro,
+                                        checkedTrackColor = GoldPro.copy(alpha = 0.35f),
+                                        uncheckedThumbColor = TextMuted,
+                                        uncheckedTrackColor = SurfaceDark
+                                    )
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Room Tone Smoothing Toggle
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(CardDark)
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Room Tone Smoothing",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = if (cutSettings.roomToneSmoothing) "15ms S-curve crossfades & ambient floor continuity" else "Hard cut boundaries",
+                                        fontSize = 9.sp,
+                                        color = TextSecondary
+                                    )
+                                }
+                                Switch(
+                                    checked = cutSettings.roomToneSmoothing,
+                                    onCheckedChange = { onSettingsChanged(cutSettings.copy(roomToneSmoothing = it)) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = PrimaryCyan,
+                                        checkedTrackColor = PrimaryCyan.copy(alpha = 0.35f),
+                                        uncheckedThumbColor = TextMuted,
+                                        uncheckedTrackColor = SurfaceDark
+                                    )
+                                )
+                            }
                         }
                     }
                 }
@@ -1015,7 +1100,10 @@ fun EditorScreen(
 
     if (showExportSheet) {
         ExportBottomSheet(
-            initialConfig = exportConfig,
+            initialConfig = exportConfig.copy(
+                studioAudioLeveling = cutSettings.studioAudioLeveling,
+                roomToneSmoothing = cutSettings.roomToneSmoothing
+            ),
             isVideo = media.isVideo,
             originalDurationMs = originalDurationMs,
             cutDurationMs = cutDurationMs,

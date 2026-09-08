@@ -62,6 +62,8 @@ class PresetRepository(context: Context) {
                 val volumeBoost = obj.optDouble("volumeBoost", 1.0).toFloat()
                 val voiceNoiseRejection = obj.optDouble("voiceNoiseRejection", 0.65).toFloat()
                 val autoNoiseFloor = obj.optBoolean("autoNoiseFloor", true)
+                val studioAudioLeveling = obj.optBoolean("studioAudioLeveling", true)
+                val roomToneSmoothing = obj.optBoolean("roomToneSmoothing", true)
 
                 result.add(
                     CreatorPreset(
@@ -74,7 +76,9 @@ class PresetRepository(context: Context) {
                             removeNoise = removeNoise,
                             volumeBoost = volumeBoost,
                             voiceNoiseRejection = voiceNoiseRejection,
-                            autoNoiseFloor = autoNoiseFloor
+                            autoNoiseFloor = autoNoiseFloor,
+                            studioAudioLeveling = studioAudioLeveling,
+                            roomToneSmoothing = roomToneSmoothing
                         ),
                         isBuiltIn = false
                     )
@@ -117,6 +121,8 @@ class PresetRepository(context: Context) {
             obj.put("volumeBoost", p.settings.volumeBoost.toDouble())
             obj.put("voiceNoiseRejection", p.settings.voiceNoiseRejection.toDouble())
             obj.put("autoNoiseFloor", p.settings.autoNoiseFloor)
+            obj.put("studioAudioLeveling", p.settings.studioAudioLeveling)
+            obj.put("roomToneSmoothing", p.settings.roomToneSmoothing)
             array.put(obj)
         }
         prefs.edit().putString(KEY_CUSTOM_PRESETS, array.toString()).apply()

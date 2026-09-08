@@ -29,7 +29,9 @@ data class ExportConfig(
     val boostVoice: Boolean = false,
     val autoZoomJumpcuts: Boolean = false,
     val microCrossfade: Boolean = true,
-    val silenceTimeWarp: Boolean = false
+    val silenceTimeWarp: Boolean = false,
+    val studioAudioLeveling: Boolean = true,
+    val roomToneSmoothing: Boolean = true
 )
 
 data class SavedProject(
@@ -59,7 +61,9 @@ data class CutSettings(
     val removeNoise: Boolean = true,
     val volumeBoost: Float = 1.0f,
     val voiceNoiseRejection: Float = 0.65f,
-    val autoNoiseFloor: Boolean = true
+    val autoNoiseFloor: Boolean = true,
+    val studioAudioLeveling: Boolean = true,
+    val roomToneSmoothing: Boolean = true
 )
 
 data class CreatorPreset(

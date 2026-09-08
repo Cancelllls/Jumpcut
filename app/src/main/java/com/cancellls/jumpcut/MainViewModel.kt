@@ -380,7 +380,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     totalDurationMs = media.durationMs,
                     extractAudioOnly = isAudioOnly,
                     autoZoomJumpcuts = config.autoZoomJumpcuts,
-                    microCrossfade = config.microCrossfade
+                    microCrossfade = config.microCrossfade,
+                    studioAudioLeveling = config.studioAudioLeveling,
+                    roomToneSmoothing = config.roomToneSmoothing,
+                    ambientNoiseFloorDb = state.estimatedNoiseFloorDb
                 ).collect { progress ->
                     when (progress) {
                         is SplicerProgress.Progress -> {

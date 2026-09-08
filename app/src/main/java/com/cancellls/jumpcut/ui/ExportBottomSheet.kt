@@ -43,6 +43,8 @@ fun ExportBottomSheet(
     var saveToGallery by remember { mutableStateOf(initialConfig.saveToGallery) }
     var autoZoomJumpcuts by remember { mutableStateOf(initialConfig.autoZoomJumpcuts) }
     var microCrossfade by remember { mutableStateOf(initialConfig.microCrossfade) }
+    var studioAudioLeveling by remember { mutableStateOf(initialConfig.studioAudioLeveling) }
+    var roomToneSmoothing by remember { mutableStateOf(initialConfig.roomToneSmoothing) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -286,13 +288,76 @@ fun ExportBottomSheet(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Room Tone Micro-Crossfade (Pro Audio)
+            // Studio Speech Auto-Leveler (-14 LUFS)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(CardDark)
-                    .clickable { microCrossfade = !microCrossfade }
+                    .clickable { studioAudioLeveling = !studioAudioLeveling }
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VolumeUp,
+                        contentDescription = null,
+                        tint = GoldPro,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Studio Speech Leveler",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(GoldPro.copy(alpha = 0.2f))
+                                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                            ) {
+                                Text("-14 LUFS", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = GoldPro)
+                            }
+                        }
+                        Text(
+                            text = "Auto-levels dialogue loudness with -1 dB peak limiter",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+                Switch(
+                    checked = studioAudioLeveling,
+                    onCheckedChange = { studioAudioLeveling = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = TextPrimary,
+                        checkedTrackColor = GoldPro,
+                        uncheckedTrackColor = CardBorder
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Room Tone & Seam Smoothing (Pro Audio)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CardDark)
+                    .clickable {
+                        roomToneSmoothing = !roomToneSmoothing
+                        microCrossfade = roomToneSmoothing
+                    }
                     .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -311,7 +376,7 @@ fun ExportBottomSheet(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Room Tone Micro-Crossfade",
+                                text = "Room Tone Smoothing",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
@@ -327,15 +392,18 @@ fun ExportBottomSheet(
                             }
                         }
                         Text(
-                            text = "Smooth 15ms cosine seams eliminate clicks and hiss drops",
+                            text = "15ms S-curve crossfades & ambient floor continuity",
                             fontSize = 11.sp,
                             color = TextSecondary
                         )
                     }
                 }
                 Switch(
-                    checked = microCrossfade,
-                    onCheckedChange = { microCrossfade = it },
+                    checked = roomToneSmoothing,
+                    onCheckedChange = {
+                        roomToneSmoothing = it
+                        microCrossfade = it
+                    },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = TextPrimary,
                         checkedTrackColor = PrimaryCyan,
@@ -435,7 +503,9 @@ fun ExportBottomSheet(
                                 extractAudioOnly = extractAudioOnly,
                                 saveToGallery = saveToGallery,
                                 autoZoomJumpcuts = autoZoomJumpcuts,
-                                microCrossfade = microCrossfade
+                                microCrossfade = microCrossfade,
+                                studioAudioLeveling = studioAudioLeveling,
+                                roomToneSmoothing = roomToneSmoothing
                             )
                         )
                     },
