@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
@@ -122,6 +123,10 @@ class MainActivity : ComponentActivity() {
                             }
 
                         is ProcessingState.Analyzing -> {
+                            BackHandler {
+                                viewModel.cancelAnalysis()
+                            }
+
                             Box(
                                 modifier = Modifier.fillMaxSize().background(BgDark),
                                 contentAlignment = Alignment.Center
@@ -150,6 +155,10 @@ class MainActivity : ComponentActivity() {
                         }
 
                         is ProcessingState.Ready -> {
+                            BackHandler {
+                                viewModel.reset()
+                            }
+
                             val media = selectedMedia
                             if (media != null) {
                                 EditorScreen(
@@ -192,6 +201,14 @@ class MainActivity : ComponentActivity() {
                         is ProcessingState.Exporting,
                         is ProcessingState.Exported,
                         is ProcessingState.Error -> {
+                            BackHandler {
+                                if (state is ProcessingState.Exporting) {
+                                    viewModel.cancelExport()
+                                } else {
+                                    viewModel.returnToEditor()
+                                }
+                            }
+
                             ExportScreen(
                                 state = state,
                                 onDoneClick = {
@@ -200,10 +217,16 @@ class MainActivity : ComponentActivity() {
                                             viewModel.reset()
                                         }
                                     } else {
-                                        viewModel.reset()
+                                        viewModel.returnToEditor()
                                     }
                                 },
-                                onCancelClick = { viewModel.reset() }
+                                onCancelClick = {
+                                    if (state is ProcessingState.Exporting) {
+                                        viewModel.cancelExport()
+                                    } else {
+                                        viewModel.returnToEditor()
+                                    }
+                                }
                             )
                         }
                     }

@@ -58,12 +58,28 @@ object VideoSplicer {
             return@callbackFlow
         }
 
+        // Merge adjacent segments (or micro-gaps <= 80ms) into unified continuous clips.
+        // This dramatically reduces MediaCodec seek and re-initialization overhead on device hardware,
+        // preventing hardware decoder starvation and freeze at 30%/50%.
+        val sortedSegments = validSegments.sortedBy { it.startMs }
+        val mergedSegments = mutableListOf<CutSegment>()
+        for (seg in sortedSegments) {
+            if (mergedSegments.isEmpty()) {
+                mergedSegments.add(seg)
+            } else {
+                val last = mergedSegments.last()
+                if (seg.startMs <= last.endMs + 80L) {
+                    mergedSegments[mergedSegments.size - 1] = last.copy(endMs = maxOf(last.endMs, seg.endMs))
+                } else {
+                    mergedSegments.add(seg)
+                }
+            }
+        }
+
         val handler = Handler(Looper.getMainLooper())
         val progressHolder = ProgressHolder()
 
         // Maintain uniform video effects across all sequence items when auto-zoom is enabled:
-        // Even cuts receive 1.0f identity scale; odd cuts receive 1.12f punch-in zoom.
-        // Keeping the VideoFrameProcessor pipeline uniform prevents sequence reconfiguration crashes.
         val punchInZoomEffect = ScaleAndRotateTransformation.Builder()
             .setScale(1.12f, 1.12f)
             .build()
@@ -71,29 +87,28 @@ object VideoSplicer {
             .setScale(1.0f, 1.0f)
             .build()
 
-        val editedMediaItems = validSegments.mapIndexed { index, seg ->
-            val clipping = MediaItem.ClippingConfiguration.Builder()
+        val editedMediaItems = mergedSegments.mapIndexed { index, seg ->
+            val isLast = (index == mergedSegments.size - 1)
+            val clippingBuilder = MediaItem.ClippingConfiguration.Builder()
                 .setStartPositionMs(seg.startMs)
-                .setEndPositionMs(seg.endMs)
                 .setStartsAtKeyFrame(false)
-                .build()
+
+            // For the final segment reaching near source end, use TIME_END_OF_SOURCE
+            // to prevent the asset loader from stalling waiting for non-existent frames.
+            if (!isLast || seg.endMs < maxDuration - 250L) {
+                clippingBuilder.setEndPositionMs(seg.endMs)
+            } else {
+                clippingBuilder.setEndPositionMs(androidx.media3.common.C.TIME_END_OF_SOURCE)
+            }
 
             val mediaItem = MediaItem.Builder()
                 .setUri(inputUri)
-                .setClippingConfiguration(clipping)
+                .setClippingConfiguration(clippingBuilder.build())
                 .build()
 
             val builder = EditedMediaItem.Builder(mediaItem)
                 .setRemoveVideo(extractAudioOnly)
                 .setFlattenForSlowMotion(false)
-
-            // Each EditedMediaItem must have its own AudioProcessor instance to avoid
-            // state corruption across clip boundaries in Media3 AudioGraph
-            val audioProcessors = if (microCrossfade) {
-                listOf(MicroCrossfadeAudioProcessor(15L))
-            } else {
-                emptyList()
-            }
 
             val videoEffects = if (!extractAudioOnly && autoZoomJumpcuts) {
                 if (index % 2 == 1) listOf(punchInZoomEffect) else listOf(identityZoomEffect)
@@ -101,8 +116,8 @@ object VideoSplicer {
                 emptyList()
             }
 
-            if (audioProcessors.isNotEmpty() || videoEffects.isNotEmpty()) {
-                builder.setEffects(Effects(audioProcessors, videoEffects))
+            if (videoEffects.isNotEmpty()) {
+                builder.setEffects(Effects(emptyList(), videoEffects))
             }
 
             builder.build()
@@ -138,7 +153,7 @@ object VideoSplicer {
 
                 val detailedMsg = when (exportException.errorCode) {
                     ExportException.ERROR_CODE_MUXING_TIMEOUT ->
-                        "Muxer timed out while encoding video cuts."
+                        "Export timed out while encoding video cuts."
                     ExportException.ERROR_CODE_MUXING_FAILED ->
                         "Hardware muxer error: ${detailedCause ?: causeMsg ?: exportException.message}"
                     ExportException.ERROR_CODE_DECODER_INIT_FAILED ->
@@ -173,27 +188,48 @@ object VideoSplicer {
             androidx.media3.common.util.Clock.DEFAULT
         )
 
-        val inAppMuxerFactory = androidx.media3.transformer.InAppMuxer.Factory.Builder().build()
+        val muxerFactory = try {
+            androidx.media3.transformer.InAppMuxer.Factory.Builder().build()
+        } catch (_: Throwable) {
+            androidx.media3.transformer.DefaultMuxer.Factory()
+        }
 
-        // Disable artificial watchdog timeout (C.TIME_UNSET) and use in-app pure MP4 muxer to avoid Muxer errors on Snapdragon/Qualcomm chipsets
+        // Set a 15-second watchdog timeout so the muxer can never stall indefinitely ("stops for life")
         val transformer = Transformer.Builder(context)
             .setAssetLoaderFactory(assetLoaderFactory)
             .setEncoderFactory(encoderFactory)
-            .setMuxerFactory(inAppMuxerFactory)
-            .setMaxDelayBetweenMuxerSamplesMs(androidx.media3.common.C.TIME_UNSET)
+            .setMuxerFactory(muxerFactory)
+            .setMaxDelayBetweenMuxerSamplesMs(15_000L)
             .addListener(listener)
             .build()
 
         transformer.start(composition, outputFile.absolutePath)
 
-        // Poll progress every 150ms
+        // Poll progress and maintain active stall watchdog
+        var lastReportedProgress = -1f
+        var lastProgressChangeTimeMs = System.currentTimeMillis()
+        val STALL_TIMEOUT_MS = 30_000L
+
         val progressRunnable = object : Runnable {
             override fun run() {
                 val state = transformer.getProgress(progressHolder)
                 if (state == Transformer.PROGRESS_STATE_AVAILABLE) {
                     val p = (progressHolder.progress / 100f).coerceIn(0f, 1f)
-                    trySend(SplicerProgress.Progress(p))
+                    if (p != lastReportedProgress) {
+                        lastReportedProgress = p
+                        lastProgressChangeTimeMs = System.currentTimeMillis()
+                        trySend(SplicerProgress.Progress(p))
+                    }
                 }
+
+                // If progress has completely stopped for > 30s and has not completed, fail cleanly
+                if (System.currentTimeMillis() - lastProgressChangeTimeMs > STALL_TIMEOUT_MS) {
+                    Log.e(TAG, "Export stalled: no progress for ${STALL_TIMEOUT_MS / 1000}s at ${(lastReportedProgress * 100).toInt()}%")
+                    trySend(SplicerProgress.Error(IllegalStateException("Export stalled at ${(lastReportedProgress * 100).toInt()}%. Device hardware codec limit reached.")))
+                    close()
+                    return
+                }
+
                 handler.postDelayed(this, 150)
             }
         }

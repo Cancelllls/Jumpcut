@@ -1,9 +1,12 @@
 package com.cancellls.jumpcut.ui
 
+import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,9 +25,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cancellls.jumpcut.model.CreatorPreset
@@ -56,6 +62,10 @@ fun HomeScreen(
     isProUser: Boolean
 ) {
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Cutter, 1: Projects, 2: Settings
+
+    BackHandler(enabled = selectedTab != 0) {
+        selectedTab = 0
+    }
 
     Scaffold(
         containerColor = BgDark,
@@ -230,8 +240,8 @@ fun CutterStudioContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(11.dp))
                         .background(
                             Brush.linearGradient(listOf(PrimaryCyan, ElectricBlue))
                         ),
@@ -241,7 +251,7 @@ fun CutterStudioContent(
                         imageVector = Icons.Default.ContentCut,
                         contentDescription = "Logo",
                         tint = BgDark,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
                 Spacer(modifier = Modifier.width(10.dp))
@@ -249,7 +259,7 @@ fun CutterStudioContent(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "JumpCut",
-                            fontSize = 19.sp,
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = TextPrimary
                         )
@@ -257,13 +267,13 @@ fun CutterStudioContent(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(PrimaryCyan.copy(alpha = 0.15f))
-                                .border(1.dp, PrimaryCyan.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+                                .background(PrimaryCyan.copy(alpha = 0.12f))
+                                .border(0.5.dp, PrimaryCyan.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "PRO STUDIO",
-                                fontSize = 9.sp,
+                                text = "STUDIO",
+                                fontSize = 8.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = PrimaryCyan,
                                 letterSpacing = 0.8.sp
@@ -278,68 +288,48 @@ fun CutterStudioContent(
                 }
             }
 
-            // Top Actions: Quota Pill + Pro Badge
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (!isProUser) {
-                    val hasRemaining = remainingExports > 0
-                    Box(
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(if (hasRemaining) CardDark else SilenceRed.copy(alpha = 0.18f))
-                            .border(
-                                1.dp,
-                                if (hasRemaining) CardBorder else SilenceRed.copy(alpha = 0.6f),
-                                CircleShape
-                            )
-                            .clickable { if (!hasRemaining) onOpenPro() }
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = if (hasRemaining) Icons.Default.Bolt else Icons.Default.Lock,
-                                contentDescription = null,
-                                tint = if (hasRemaining) PrimaryCyan else SilenceRed,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (hasRemaining) "$remainingExports left" else "0 left",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (hasRemaining) TextPrimary else SilenceRed
-                            )
-                        }
-                    }
-                }
-
+            // Single unified Pro / Quota Badge (No duplicate buttons)
+            if (isProUser) {
                 Box(
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(if (isProUser) GoldPro else CardDark)
+                        .background(GoldPro)
+                        .clickable { onOpenPro() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Star, contentDescription = "Pro", tint = BgDark, modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("PRO ACTIVE", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = BgDark)
+                    }
+                }
+            } else {
+                val hasRemaining = remainingExports > 0
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(if (hasRemaining) CardDark else SilenceRed.copy(alpha = 0.18f))
                         .border(
                             1.dp,
-                            if (isProUser) GoldPro else GoldPro.copy(alpha = 0.5f),
+                            if (hasRemaining) CardBorder else SilenceRed.copy(alpha = 0.5f),
                             CircleShape
                         )
                         .clickable { onOpenPro() }
-                        .padding(horizontal = 12.dp, vertical = 5.dp)
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = "Pro",
-                            tint = if (isProUser) BgDark else GoldPro,
-                            modifier = Modifier.size(14.dp)
+                            imageVector = if (hasRemaining) Icons.Default.Bolt else Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = if (hasRemaining) PrimaryCyan else SilenceRed,
+                            modifier = Modifier.size(13.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = if (isProUser) "PRO ACTIVE" else "PRO",
+                            text = if (hasRemaining) "$remainingExports free left" else "0 left • Upgrade",
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = if (isProUser) BgDark else GoldPro
+                            fontWeight = FontWeight.Bold,
+                            color = if (hasRemaining) TextPrimary else SilenceRed
                         )
                     }
                 }
@@ -357,253 +347,124 @@ fun CutterStudioContent(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // Master Creation Card: CapCut-Style "Start New Project"
+        // Unified Master Creation Hero Card
         Card(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(22.dp),
             colors = CardDefaults.cardColors(containerColor = SurfaceDark),
             border = androidx.compose.foundation.BorderStroke(
-                1.5.dp,
+                1.dp,
                 Brush.verticalGradient(
-                    listOf(PrimaryCyan.copy(alpha = 0.7f), ElectricBlue.copy(alpha = 0.25f), CardBorder)
+                    listOf(PrimaryCyan.copy(alpha = 0.5f), ElectricBlue.copy(alpha = 0.2f), CardBorder)
                 )
             ),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // Primary Start New Project Tap Target
-                Row(
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .size(60.dp)
+                        .clip(CircleShape)
+                        .background(Brush.linearGradient(listOf(PrimaryCyan, ElectricBlue)))
                         .clickable {
                             singleMediaPicker.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
                             )
-                        }
-                        .padding(horizontal = 18.dp, vertical = 18.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(54.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(PrimaryCyan, ElectricBlue)
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "New Project",
-                            tint = BgDark,
-                            modifier = Modifier.size(30.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Start New Project",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = TextPrimary
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(PrimaryCyan.copy(alpha = 0.15f))
-                                    .border(0.5.dp, PrimaryCyan.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                                    .padding(horizontal = 5.dp, vertical = 1.dp)
-                            ) {
-                                Text(
-                                    text = "4K 60FPS",
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = PrimaryCyan
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(3.dp))
-
-                        Text(
-                            text = "Lossless hardware cut • Zero quality loss",
-                            fontSize = 12.sp,
-                            color = TextSecondary
-                        )
-                    }
-
                     Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = null,
-                        tint = TextSecondary,
-                        modifier = Modifier.size(24.dp)
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "New Project",
+                        tint = BgDark,
+                        modifier = Modifier.size(32.dp)
                     )
                 }
 
-                HorizontalDivider(
-                    color = CardBorder.copy(alpha = 0.5f),
-                    thickness = 1.dp,
-                    modifier = Modifier.padding(horizontal = 14.dp)
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = "New Project",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = TextPrimary
                 )
 
-                // Quick Import Ribbon
-                Row(
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Auto-detect and cut pauses • Native 4K 60FPS",
+                    fontSize = 12.sp,
+                    color = TextSecondary,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Primary full-width Gallery CTA
+                Button(
+                    onClick = {
+                        singleMediaPicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                        )
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .height(46.dp)
+                ) {
+                    Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = BgDark, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Select from Gallery", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = BgDark)
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Secondary actions: All Files & Web Stream
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    StudioActionChip(
-                        icon = Icons.Default.FolderOpen,
-                        label = "Browse Files",
-                        tint = PrimaryCyan,
-                        modifier = Modifier.weight(1f),
-                        onClick = { anyFilePicker.launch("video/*") }
-                    )
-                    StudioActionChip(
-                        icon = Icons.Default.Link,
-                        label = "Web Stream",
-                        tint = ElectricBlue,
-                        modifier = Modifier.weight(1f),
-                        onClick = { showUrlDialog = true }
-                    )
-                    StudioActionChip(
-                        icon = Icons.Default.Mic,
-                        label = "Audio Memo",
-                        tint = SpeechCyan,
-                        modifier = Modifier.weight(1f),
-                        onClick = { anyFilePicker.launch("audio/*") }
-                    )
+                    OutlinedButton(
+                        onClick = { anyFilePicker.launch("*/*") },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+                    ) {
+                        Icon(Icons.Default.FolderOpen, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("All Files", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    OutlinedButton(
+                        onClick = { showUrlDialog = true },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+                    ) {
+                        Icon(Icons.Default.Link, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Web Link", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Creator Studio Impact HUD
         StudioImpactBar(savedProjects = savedProjects)
 
-        Spacer(modifier = Modifier.height(18.dp))
-
-        // Studio Quick Toolkit (2x2 Grid)
-        StudioQuickToolsGrid(
-            onInstantCut = {
-                singleMediaPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
-            },
-            onVoiceArmor = {
-                selectedPresetId = "preset_podcast"
-                onApplyPreset(CutSettings(-34f, 450L, 70L))
-            },
-            onEdlExport = {
-                onViewAllProjects()
-            },
-            onBatchQueue = {
-                onOpenPro()
-            }
-        )
-
-        // JumpCut PRO Showcase Banner (if free tier)
-        if (!isProUser) {
-            Spacer(modifier = Modifier.height(18.dp))
-            StudioProCard(onUpgrade = onOpenPro)
-        }
-
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Sensitivity Presets Section
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Rhythm Presets",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Calibrated speech pacing",
-                    fontSize = 12.sp,
-                    color = TextMuted
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            val displayPresets = if (creatorPresets.isNotEmpty()) creatorPresets else listOf(
-                CreatorPreset("preset_shorts", "Viral Shorts", CutSettings(-30f, 250L, 40L), isBuiltIn = true),
-                CreatorPreset("preset_podcast", "Podcast Studio", CutSettings(-34f, 450L, 70L), isBuiltIn = true),
-                CreatorPreset("preset_lecture", "Fast Lecture", CutSettings(-28f, 200L, 30L), isBuiltIn = true),
-                CreatorPreset("preset_vlog", "Vlog & Story", CutSettings(-36f, 600L, 80L), isBuiltIn = true)
-            )
-
-            displayPresets.forEach { preset ->
-                val isSelected = selectedPresetId == preset.id
-                val icon = when {
-                    preset.name.contains("Short", true) || preset.name.contains("TikTok", true) -> Icons.Default.FlashOn
-                    preset.name.contains("Pod", true) -> Icons.Default.Podcasts
-                    preset.name.contains("Lect", true) -> Icons.Default.Speed
-                    preset.name.contains("Vlog", true) || preset.name.contains("Story", true) -> Icons.Default.Videocam
-                    else -> Icons.Default.Tune
-                }
-                val accent = when {
-                    preset.name.contains("Short", true) -> PrimaryCyan
-                    preset.name.contains("Pod", true) -> ElectricBlue
-                    preset.name.contains("Lect", true) -> GreenSuccess
-                    else -> PrimaryCyan
-                }
-
-                Box(modifier = Modifier.width(142.dp)) {
-                    PresetCard(
-                        title = preset.name,
-                        subtitle = "${preset.settings.silenceThresholdDb.toInt()}dB • ${preset.settings.paddingMs}ms",
-                        icon = icon,
-                        accentColor = accent,
-                        isSelected = isSelected,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        selectedPresetId = preset.id
-                        onApplyPreset(preset.settings)
-                    }
-
-                    if (!preset.isBuiltIn && onDeleteCustomPreset != null) {
-                        IconButton(
-                            onClick = { onDeleteCustomPreset(preset.id) },
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(2.dp)
-                                .size(24.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Delete",
-                                tint = TextMuted,
-                                modifier = Modifier.size(13.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(22.dp))
-
-        // Recent Projects Showcase
+        // Recent Projects Section (Preview linking to Projects Library)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -618,7 +479,7 @@ fun CutterStudioContent(
 
             if (savedProjects.isNotEmpty()) {
                 Text(
-                    text = "View Library (${savedProjects.size}) ›",
+                    text = "See All (${savedProjects.size}) ›",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = PrimaryCyan,
@@ -632,10 +493,10 @@ fun CutterStudioContent(
         if (savedProjects.isNotEmpty()) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                savedProjects.take(3).forEach { proj ->
-                    ProjectCard(
+                savedProjects.take(2).forEach { proj ->
+                    RecentProjectItem(
                         project = proj,
                         onPlay = { playingProject = proj },
                         onShare = {
@@ -644,9 +505,7 @@ fun CutterStudioContent(
                                 file = File(proj.filePath),
                                 isVideo = proj.isVideo
                             )
-                        },
-                        onExportEdl = if (onExportEdl != null) { { onExportEdl(proj, false) } } else null,
-                        onDelete = { projectToDelete = proj }
+                        }
                     )
                 }
             }
@@ -657,15 +516,15 @@ fun CutterStudioContent(
                 border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 28.dp, horizontal = 20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(52.dp)
+                            .size(44.dp)
                             .clip(CircleShape)
                             .background(CardDark),
                         contentAlignment = Alignment.Center
@@ -673,33 +532,30 @@ fun CutterStudioContent(
                         Icon(
                             imageVector = Icons.Default.GraphicEq,
                             contentDescription = null,
-                            tint = PrimaryCyan.copy(alpha = 0.8f),
-                            modifier = Modifier.size(28.dp)
+                            tint = PrimaryCyan,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text(
-                        text = "Studio Workspace Ready",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = "Import a video or audio clip above to automatically detect and cut pauses with zero quality loss.",
-                        fontSize = 12.sp,
-                        color = TextSecondary,
-                        textAlign = TextAlign.Center
-                    )
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Clean, Snappy Edits in Seconds",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "JumpCut removes pauses without re-encoding, preserving full 4K 60FPS fidelity.",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(20.dp))
     }
 
     // Playback Dialog for Studio Recent Projects
@@ -810,94 +666,117 @@ fun CutterStudioContent(
 }
 
 @Composable
-fun StudioActionChip(
-    icon: ImageVector,
-    label: String,
-    tint: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
+fun RecentProjectItem(
+    project: SavedProject,
+    onPlay: () -> Unit,
+    onShare: () -> Unit
 ) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(CardDark)
-            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
-            .clickable { onClick() }
-            .padding(vertical = 10.dp, horizontal = 4.dp),
-        contentAlignment = Alignment.Center
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onPlay() }
     ) {
         Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(imageVector = icon, contentDescription = label, tint = tint, modifier = Modifier.size(15.dp))
-            Spacer(modifier = Modifier.width(5.dp))
-            Text(
-                text = label,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = TextPrimary,
-                maxLines = 1
-            )
-        }
-    }
-}
+            val thumbnail = remember(project.thumbnailPath) {
+                project.thumbnailPath?.let { path ->
+                    val file = File(path)
+                    if (file.exists()) BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap() else null
+                }
+            }
 
-@Composable
-fun SpecPill(text: String) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(CardDark)
-            .border(1.dp, CardBorder, RoundedCornerShape(6.dp))
-            .padding(horizontal = 7.dp, vertical = 3.dp)
-    ) {
-        Text(
-            text = text,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = PrimaryCyan,
-            letterSpacing = 0.5.sp
-        )
-    }
-}
-
-@Composable
-fun PresetCard(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    accentColor: Color,
-    isSelected: Boolean = false,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (isSelected) CardDark else SurfaceDark)
-            .border(
-                1.5.dp,
-                if (isSelected) accentColor else CardBorder,
-                RoundedCornerShape(16.dp)
-            )
-            .clickable { onClick() }
-            .padding(14.dp)
-    ) {
-        Column {
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(width = 64.dp, height = 48.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(accentColor.copy(alpha = if (isSelected) 0.25f else 0.12f)),
+                    .background(CardDark),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(imageVector = icon, contentDescription = title, tint = accentColor, modifier = Modifier.size(18.dp))
+                if (thumbnail != null) {
+                    Image(
+                        bitmap = thumbnail,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (project.isVideo) Icons.Default.Videocam else Icons.Default.Mic,
+                        contentDescription = null,
+                        tint = PrimaryCyan,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(BgDark.copy(alpha = 0.7f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Play",
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
             }
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(text = title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(text = subtitle, fontSize = 10.sp, color = if (isSelected) TextPrimary else TextSecondary)
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = project.title,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(GreenSuccess.copy(alpha = 0.15f))
+                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            text = "${project.savedPercent}% trimmed",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GreenSuccess
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = project.formattedSize,
+                        fontSize = 10.sp,
+                        color = TextMuted
+                    )
+                }
+            }
+
+            IconButton(
+                onClick = onShare,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Share,
+                    contentDescription = "Share",
+                    tint = TextSecondary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }
@@ -924,7 +803,6 @@ fun StudioImpactBar(savedProjects: List<SavedProject>) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Stat 1: Time Saved
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Timer, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(13.dp))
@@ -947,7 +825,6 @@ fun StudioImpactBar(savedProjects: List<SavedProject>) {
                     .background(CardBorder)
             )
 
-            // Stat 2: Dead Pauses Eliminated
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.ContentCut, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(13.dp))
@@ -970,7 +847,6 @@ fun StudioImpactBar(savedProjects: List<SavedProject>) {
                     .background(CardBorder)
             )
 
-            // Stat 3: Lossless Direct
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -988,7 +864,7 @@ fun StudioImpactBar(savedProjects: List<SavedProject>) {
                     )
                 }
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(text = "Direct Passthrough", fontSize = 10.sp, color = TextSecondary)
+                Text(text = "Native 4K 60FPS", fontSize = 10.sp, color = TextSecondary)
             }
         }
     }
@@ -1002,210 +878,5 @@ fun formatTimeSavedShort(ms: Long): String {
         hours > 0 -> "${hours}h ${minutes % 60}m"
         minutes > 0 -> "${minutes}m ${totalSeconds % 60}s"
         else -> "${totalSeconds}s"
-    }
-}
-
-@Composable
-fun StudioQuickToolsGrid(
-    onInstantCut: () -> Unit,
-    onVoiceArmor: () -> Unit,
-    onEdlExport: () -> Unit,
-    onBatchQueue: () -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Creator Toolkit",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-            Text(
-                text = "Studio utilities",
-                fontSize = 12.sp,
-                color = TextMuted
-            )
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            StudioToolCard(
-                icon = Icons.Default.AutoAwesome,
-                iconTint = PrimaryCyan,
-                title = "Magic Auto-Cut",
-                subtitle = "1-tap silence trim",
-                modifier = Modifier.weight(1f),
-                onClick = onInstantCut
-            )
-            StudioToolCard(
-                icon = Icons.Default.GraphicEq,
-                iconTint = ElectricBlue,
-                title = "Voice Floor",
-                subtitle = "Speech edge armor",
-                modifier = Modifier.weight(1f),
-                onClick = onVoiceArmor
-            )
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            StudioToolCard(
-                icon = Icons.Default.DesktopWindows,
-                iconTint = GreenSuccess,
-                title = "EDL / XML Studio",
-                subtitle = "Send to Premiere & DaVinci",
-                modifier = Modifier.weight(1f),
-                onClick = onEdlExport
-            )
-            StudioToolCard(
-                icon = Icons.Default.Layers,
-                iconTint = GoldPro,
-                title = "Batch Splicer",
-                subtitle = "Multi-clip queue",
-                isProBadge = true,
-                modifier = Modifier.weight(1f),
-                onClick = onBatchQueue
-            )
-        }
-    }
-}
-
-@Composable
-fun StudioToolCard(
-    icon: ImageVector,
-    iconTint: Color,
-    title: String,
-    subtitle: String,
-    isProBadge: Boolean = false,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
-        modifier = modifier
-            .clickable { onClick() }
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(iconTint.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(imageVector = icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp))
-                }
-
-                if (isProBadge) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(GoldPro.copy(alpha = 0.18f))
-                            .border(0.5.dp, GoldPro.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 5.dp, vertical = 2.dp)
-                    ) {
-                        Text("PRO", fontSize = 8.sp, fontWeight = FontWeight.ExtraBold, color = GoldPro)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(text = title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(text = subtitle, fontSize = 10.sp, color = TextSecondary, maxLines = 1)
-        }
-    }
-}
-
-@Composable
-fun StudioProCard(
-    onUpgrade: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-        border = androidx.compose.foundation.BorderStroke(
-            1.5.dp,
-            Brush.horizontalGradient(listOf(GoldPro.copy(alpha = 0.8f), PrimaryCyan.copy(alpha = 0.6f)))
-        ),
-        modifier = modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(GoldPro.copy(alpha = 0.18f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Star, contentDescription = null, tint = GoldPro, modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(text = "JumpCut Studio PRO", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
-                        Text(text = "For creators & professional editors", fontSize = 11.sp, color = TextSecondary)
-                    }
-                }
-
-                Button(
-                    onClick = onUpgrade,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldPro),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Text("Upgrade", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BgDark)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                listOf(
-                    "Unlimited 4K Exports",
-                    "Premiere/DaVinci EDL",
-                    "Zero Ads"
-                ).forEach { feature ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = GoldPro, modifier = Modifier.size(12.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = feature, fontSize = 10.sp, color = TextSecondary)
-                    }
-                }
-            }
-        }
     }
 }

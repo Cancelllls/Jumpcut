@@ -27,6 +27,7 @@ import com.cancellls.jumpcut.storage.PresetRepository
 import com.cancellls.jumpcut.storage.ProjectRepository
 import com.cancellls.jumpcut.storage.StorageManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,6 +41,10 @@ import java.util.Locale
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val context: Context get() = getApplication()
     private val TAG = "MainViewModel"
+
+    private var lastReadyState: ProcessingState.Ready? = null
+    private var analysisJob: Job? = null
+    private var exportJob: Job? = null
 
     private val projectRepository = ProjectRepository(context)
     val savedProjects: StateFlow<List<SavedProject>> = projectRepository.projects
@@ -121,7 +126,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        viewModelScope.launch {
+        analysisJob?.cancel()
+        analysisJob = viewModelScope.launch {
             try {
                 _processingState.value = ProcessingState.Analyzing(0.02f, "Connecting to video URL...")
                 val downloadedFile = withContext(Dispatchers.IO) {
@@ -188,7 +194,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectMedia(uri: Uri) {
-        viewModelScope.launch {
+        analysisJob?.cancel()
+        analysisJob = viewModelScope.launch {
             try {
                 _processingState.value = ProcessingState.Analyzing(0.05f, "Preparing media file...")
                 val safeUri = withContext(Dispatchers.IO) {
@@ -296,10 +303,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (seg.id == segmentId) seg.copy(isExcluded = !seg.isExcluded) else seg
         }
         val newCutDuration = updated.filter { it.shouldKeep }.sumOf { it.durationMs }
-        _processingState.value = ready.copy(
+        val updatedReady = ready.copy(
             segments = updated,
             cutDurationMs = newCutDuration
         )
+        lastReadyState = updatedReady
+        _processingState.value = updatedReady
     }
 
     fun updateExportConfig(config: ExportConfig) {
@@ -308,12 +317,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun applySilenceDetection(analysis: AudioAnalysisResult, settings: CutSettings) {
         val result = SilenceDetector.detect(analysis, settings)
-        _processingState.value = ProcessingState.Ready(
+        val ready = ProcessingState.Ready(
             originalDurationMs = result.originalDurationMs,
             cutDurationMs = result.cutDurationMs,
             segments = result.segments,
             waveformAmplitudes = analysis.waveformNormalized.toList()
         )
+        lastReadyState = ready
+        _processingState.value = ready
     }
 
     fun toggleSkipSilencePreview(skip: Boolean) {
@@ -333,6 +344,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun exportSplicedMedia(config: ExportConfig = _exportConfig.value) {
         val media = _selectedMedia.value ?: return
         val state = _processingState.value as? ProcessingState.Ready ?: return
+        lastReadyState = state
         val keptSegments = state.segments.filter { it.shouldKeep }
 
         if (keptSegments.isEmpty()) {
@@ -348,7 +360,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        viewModelScope.launch {
+        exportJob?.cancel()
+        exportJob = viewModelScope.launch {
             try {
                 _processingState.value = ProcessingState.Exporting(0f, "Starting video splicing...")
 
@@ -496,7 +509,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return file
     }
 
+    fun cancelAnalysis() {
+        analysisJob?.cancel()
+        analysisJob = null
+        reset()
+    }
+
+    fun cancelExport() {
+        exportJob?.cancel()
+        exportJob = null
+        val ready = lastReadyState
+        if (ready != null && _selectedMedia.value != null) {
+            _processingState.value = ready
+        } else {
+            reset()
+        }
+    }
+
+    fun returnToEditor() {
+        exportJob?.cancel()
+        exportJob = null
+        val ready = lastReadyState
+        if (ready != null && _selectedMedia.value != null) {
+            _processingState.value = ready
+        } else {
+            reset()
+        }
+    }
+
     fun reset() {
+        analysisJob?.cancel()
+        analysisJob = null
+        exportJob?.cancel()
+        exportJob = null
+        lastReadyState = null
         _selectedMedia.value = null
         _audioAnalysis.value = null
         _processingState.value = ProcessingState.Idle

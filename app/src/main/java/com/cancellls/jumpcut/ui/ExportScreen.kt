@@ -500,7 +500,7 @@ fun ExportScreen(
                         .fillMaxWidth(0.7f)
                         .height(48.dp)
                 ) {
-                    Text("Return to Studio", fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                    Text(if (isMediaLoadError) "Return to Studio" else "Return to Editor", fontWeight = FontWeight.SemiBold, color = TextPrimary)
                 }
             }
 

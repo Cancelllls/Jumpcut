@@ -15,3 +15,4 @@ local.properties
 *.keystore
 build-artifacts/
 *.mp4
+.kotlin/
