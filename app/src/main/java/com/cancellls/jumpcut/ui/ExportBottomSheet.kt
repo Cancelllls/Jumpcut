@@ -40,6 +40,8 @@ fun ExportBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var extractAudioOnly by remember { mutableStateOf(initialConfig.extractAudioOnly || !isVideo) }
+    var audioFormat by remember { mutableStateOf(initialConfig.audioFormat) }
+    var videoResolution by remember { mutableStateOf(initialConfig.videoResolution) }
     var saveToGallery by remember { mutableStateOf(initialConfig.saveToGallery) }
     var autoZoomJumpcuts by remember { mutableStateOf(initialConfig.autoZoomJumpcuts) }
     var microCrossfade by remember { mutableStateOf(initialConfig.microCrossfade) }
@@ -99,12 +101,14 @@ fun ExportBottomSheet(
             // Duration & Savings Summary Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = CardDark)
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                border = androidx.compose.foundation.BorderStroke(1.dp, StudioCardBorderBrush)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .background(StudioCardBrush)
                         .padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -220,6 +224,62 @@ fun ExportBottomSheet(
                             fontSize = 10.sp,
                             color = TextSecondary
                         )
+                    }
+                }
+            }
+
+            if (!extractAudioOnly && isVideo) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("original" to "Source Resolution", "720p" to "720p (Fast Share)").forEach { (res, label) ->
+                        val isSel = videoResolution == res
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSel) PrimaryCyan.copy(alpha = 0.15f) else CardDark)
+                                .border(1.dp, if (isSel) PrimaryCyan else CardBorder, RoundedCornerShape(8.dp))
+                            .clickable { videoResolution = res }
+                            .padding(vertical = 7.dp, horizontal = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSel) PrimaryCyan else TextSecondary
+                            )
+                        }
+                    }
+                }
+            } else if (extractAudioOnly) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("m4a" to "M4A (AAC Audio)", "wav" to "WAV (Studio PCM)").forEach { (fmt, label) ->
+                        val isSel = audioFormat == fmt
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSel) ElectricBlue.copy(alpha = 0.15f) else CardDark)
+                                .border(1.dp, if (isSel) ElectricBlue else CardBorder, RoundedCornerShape(8.dp))
+                            .clickable { audioFormat = fmt }
+                            .padding(vertical = 7.dp, horizontal = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSel) ElectricBlue else TextSecondary
+                            )
+                        }
                     }
                 }
             }
@@ -505,7 +565,9 @@ fun ExportBottomSheet(
                                 autoZoomJumpcuts = autoZoomJumpcuts,
                                 microCrossfade = microCrossfade,
                                 studioAudioLeveling = studioAudioLeveling,
-                                roomToneSmoothing = roomToneSmoothing
+                                roomToneSmoothing = roomToneSmoothing,
+                                audioFormat = audioFormat,
+                                videoResolution = videoResolution
                             )
                         )
                     },
@@ -519,7 +581,7 @@ fun ExportBottomSheet(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Brush.horizontalGradient(listOf(PrimaryCyan, ElectricBlue))),
+                            .background(StudioTealGradient),
                         contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {

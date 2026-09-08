@@ -7,17 +7,30 @@ import androidx.compose.runtime.Composable
 private val DarkColorScheme = darkColorScheme(
     primary = PrimaryCyan,
     onPrimary = BgDark,
-    primaryContainer = PrimaryCyanVariant,
+    primaryContainer = CardDarkElevated,
+    onPrimaryContainer = PrimaryCyan,
     secondary = ElectricBlue,
     onSecondary = TextPrimary,
-    secondaryContainer = ElectricBlueVariant,
+    secondaryContainer = CardDark,
+    onSecondaryContainer = TextSecondary,
+    tertiary = GoldPro,
+    onTertiary = BgDark,
+    tertiaryContainer = CardDarkElevated,
+    onTertiaryContainer = GoldPro,
     background = BgDark,
     onBackground = TextPrimary,
     surface = SurfaceDark,
     onSurface = TextPrimary,
     surfaceVariant = CardDark,
     onSurfaceVariant = TextSecondary,
-    error = SilenceRed
+    surfaceContainerLowest = BgDark,
+    surfaceContainerLow = SurfaceDark,
+    surfaceContainer = CardDark,
+    surfaceContainerHigh = CardDarkElevated,
+    outline = CardBorder,
+    outlineVariant = CardBorderSubtle,
+    error = SilenceRed,
+    onError = TextPrimary
 )
 
 @Composable

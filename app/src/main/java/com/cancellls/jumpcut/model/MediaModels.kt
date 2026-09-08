@@ -31,7 +31,9 @@ data class ExportConfig(
     val microCrossfade: Boolean = true,
     val silenceTimeWarp: Boolean = false,
     val studioAudioLeveling: Boolean = true,
-    val roomToneSmoothing: Boolean = true
+    val roomToneSmoothing: Boolean = true,
+    val audioFormat: String = "m4a",
+    val videoResolution: String = "original"
 )
 
 data class SavedProject(

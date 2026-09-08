@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.cancellls.jumpcut.theme.*
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
@@ -164,27 +165,67 @@ fun BannerAdComposable(
 ) {
     if (isProUser) return
 
-    AndroidView(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(50.dp),
-        factory = { context ->
-            AdView(context).apply {
-                setAdSize(AdSize.BANNER)
-                adUnitId = AdManager.TEST_BANNER_AD_UNIT_ID
-                adListener = object : com.google.android.gms.ads.AdListener() {
-                    override fun onAdFailedToLoad(error: LoadAdError) {
-                        AdManager.checkAdBlocker(context, error)
+            .background(SurfaceDark)
+            .padding(top = 4.dp, bottom = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "SPONSOR",
+                fontSize = 8.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = TextMuted,
+                letterSpacing = 1.2.sp
+            )
+            Text(
+                text = "FREE TIER SUPPORT",
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextMuted,
+                letterSpacing = 0.6.sp
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 14.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(CardDarkElevated)
+                .border(1.dp, CardBorderSubtle, RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            AndroidView(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                factory = { context ->
+                    AdView(context).apply {
+                        setAdSize(AdSize.BANNER)
+                        adUnitId = AdManager.TEST_BANNER_AD_UNIT_ID
+                        adListener = object : com.google.android.gms.ads.AdListener() {
+                            override fun onAdFailedToLoad(error: LoadAdError) {
+                                AdManager.checkAdBlocker(context, error)
+                            }
+                        }
+                        try {
+                            loadAd(AdRequest.Builder().build())
+                        } catch (e: Exception) {
+                            Log.w("BannerAdComposable", "Ad load error", e)
+                        }
                     }
                 }
-                try {
-                    loadAd(AdRequest.Builder().build())
-                } catch (e: Exception) {
-                    Log.w("BannerAdComposable", "Ad load error", e)
-                }
-            }
+            )
         }
-    )
+    }
 }
 
 /**

@@ -53,14 +53,14 @@ fun ProPaywallSheet(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(GoldPro, PrimaryCyan))),
+                    .background(StudioGoldGradient),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.WorkspacePremium,
                     contentDescription = "Pro Crown",
                     tint = BgDark,
-                    modifier = Modifier.size(34.dp)
+                    modifier = Modifier.size(32.dp)
                 )
             }
 
@@ -200,16 +200,14 @@ fun ProPaywallSheet(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(
-                            Brush.horizontalGradient(
-                                if (selectedPlan == "lifetime") listOf(GoldPro, PrimaryCyan)
-                                else listOf(PrimaryCyan, ElectricBlue)
-                            )
+                            if (selectedPlan == "lifetime") StudioGoldGradient
+                            else StudioTealGradient
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = if (selectedPlan == "lifetime") "Unlock Lifetime Pro ($lifetimePrice)" else "Subscribe Monthly ($monthlyPrice)",
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = BgDark
                     )
@@ -276,10 +274,10 @@ fun PlanCard(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(18.dp))
-            .background(if (isSelected) CardDark else SurfaceDark)
+            .background(StudioCardBrush)
             .border(
-                width = if (isSelected) 2.dp else 1.dp,
-                color = if (isSelected) accent else CardBorder,
+                width = if (isSelected) 1.5.dp else 1.dp,
+                brush = if (isSelected) (if (accent == GoldPro) StudioGoldGradient else StudioTealGradient) else StudioCardBorderBrush,
                 shape = RoundedCornerShape(18.dp)
             )
             .clickable { onClick() }

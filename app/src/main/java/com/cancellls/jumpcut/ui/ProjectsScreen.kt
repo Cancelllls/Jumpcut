@@ -41,6 +41,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.cancellls.jumpcut.model.SavedProject
 import com.cancellls.jumpcut.storage.MediaSaver
+import com.cancellls.jumpcut.storage.StorageManager
 import com.cancellls.jumpcut.theme.*
 import java.io.File
 import java.text.SimpleDateFormat
@@ -52,11 +53,14 @@ fun ProjectsScreen(
     projects: List<SavedProject>,
     onDeleteProject: (String) -> Unit,
     onStartNewProject: () -> Unit,
-    onExportEdl: ((SavedProject, Boolean) -> Unit)? = null
+    onExportEdl: ((SavedProject, Boolean) -> Unit)? = null,
+    onReopenProject: ((SavedProject) -> Unit)? = null,
+    onClearAllProjects: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var playingProject by remember { mutableStateOf<SavedProject?>(null) }
     var projectToDelete by remember { mutableStateOf<SavedProject?>(null) }
+    var showClearAllConfirm by remember { mutableStateOf(false) }
 
     var searchQuery by remember { mutableStateOf("") }
     val filteredProjects = remember(projects, searchQuery) {
@@ -94,18 +98,30 @@ fun ProjectsScreen(
             }
 
             if (projects.isNotEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(CardDark)
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = "${projects.size} ${if (projects.size == 1) "export" else "exports"}",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = PrimaryCyan
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onClearAllProjects != null) {
+                        TextButton(
+                            onClick = { showClearAllConfirm = true },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text("Clear All", fontSize = 11.sp, color = SilenceRed, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CardDark)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "${projects.size} ${if (projects.size == 1) "export" else "exports"}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = PrimaryCyan
+                        )
+                    }
                 }
             }
         }
@@ -117,9 +133,10 @@ fun ProjectsScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(CardDark)
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(StudioCardBrush)
+                    .border(1.dp, StudioCardBorderBrush, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -129,15 +146,20 @@ fun ProjectsScreen(
                     Text(
                         text = "Total Storage: ${com.cancellls.jumpcut.storage.StorageManager.formatBytes(totalSizeBytes)}",
                         fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
                         color = TextSecondary
                     )
                 }
-                Text(
-                    text = "✂️ Saved ${formatTime(totalSavedMs)}",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = GreenSuccess
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.ContentCut, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(13.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Saved ${formatTime(totalSavedMs)}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = GreenSuccess
+                    )
+                }
             }
 
             if (projects.size >= 2) {
@@ -155,11 +177,13 @@ fun ProjectsScreen(
                         }
                     },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = CardDarkElevated,
+                        unfocusedContainerColor = SurfaceDark,
                         focusedBorderColor = PrimaryCyan,
-                        unfocusedBorderColor = CardBorder,
+                        unfocusedBorderColor = CardBorderSubtle,
                         focusedTextColor = TextPrimary,
                         unfocusedTextColor = TextPrimary,
                         cursorColor = PrimaryCyan
@@ -239,6 +263,7 @@ fun ProjectsScreen(
                                 isVideo = project.isVideo
                             )
                         },
+                        onEditInStudio = onReopenProject?.let { cb -> { cb(project) } },
                         onExportEdl = if (project.segmentsJson != null && onExportEdl != null) {
                             { onExportEdl(project, false) }
                         } else null,
@@ -254,6 +279,12 @@ fun ProjectsScreen(
         ProjectPlayerDialog(
             project = proj,
             onDismiss = { playingProject = null },
+            onEditInStudio = onReopenProject?.let { cb ->
+                {
+                    playingProject = null
+                    cb(proj)
+                }
+            },
             onShare = {
                 MediaSaver.shareMedia(
                     context = context,
@@ -295,6 +326,38 @@ fun ProjectsScreen(
             }
         )
     }
+
+    // Clear All Confirmation Dialog
+    if (showClearAllConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearAllConfirm = false },
+            containerColor = SurfaceDark,
+            title = { Text("Clear All Exports?", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    text = "Are you sure you want to delete all ${projects.size} exported projects? This will permanently free ${StorageManager.formatBytes(totalSizeBytes)} of storage.",
+                    color = TextSecondary,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onClearAllProjects?.invoke()
+                        showClearAllConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SilenceRed)
+                ) {
+                    Text("Delete All", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearAllConfirm = false }) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -302,6 +365,7 @@ fun ProjectCard(
     project: SavedProject,
     onPlay: () -> Unit,
     onShare: () -> Unit,
+    onEditInStudio: (() -> Unit)? = null,
     onExportEdl: (() -> Unit)? = null,
     onDelete: () -> Unit
 ) {
@@ -323,24 +387,26 @@ fun ProjectCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(20.dp))
             .clickable { onPlay() },
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-        border = CardDefaults.outlinedCardBorder().copy(brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder)))
+        border = androidx.compose.foundation.BorderStroke(1.dp, StudioCardBorderBrush)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(StudioCardBrush)
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Thumbnail / Icon Box
             Box(
                 modifier = Modifier
-                    .size(width = 90.dp, height = 75.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(CardDark),
+                    .size(width = 88.dp, height = 74.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CardDark)
+                    .border(1.dp, CardBorderSubtle, RoundedCornerShape(14.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 if (thumbnailBitmap != null) {
@@ -355,7 +421,7 @@ fun ProjectCard(
                         imageVector = if (project.isVideo) Icons.Default.Movie else Icons.Default.GraphicEq,
                         contentDescription = null,
                         tint = if (project.isVideo) PrimaryCyan else ElectricBlue,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(30.dp)
                     )
                 }
 
@@ -363,10 +429,10 @@ fun ProjectCard(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(4.dp)
+                        .padding(5.dp)
                         .clip(RoundedCornerShape(6.dp))
-                        .background(BgDark.copy(alpha = 0.8f))
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                        .background(BgDark.copy(alpha = 0.85f))
+                        .padding(horizontal = 5.dp, vertical = 2.dp)
                 ) {
                     Text(
                         text = formatTime(project.cutDurationMs),
@@ -381,8 +447,14 @@ fun ProjectCard(
 
             // Details
             Column(modifier = Modifier.weight(1f)) {
+                val displayTitle = remember(project.title) {
+                    project.title
+                        .replace(Regex("^JumpCut_"), "")
+                        .replace(Regex("_\\d{10,}$"), "")
+                        .ifBlank { project.title }
+                }
                 Text(
-                    text = project.title,
+                    text = displayTitle,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary,
@@ -392,13 +464,11 @@ fun ProjectCard(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "$dateStr • ${project.formattedSize}",
-                        fontSize = 11.sp,
-                        color = TextSecondary
-                    )
-                }
+                Text(
+                    text = "$dateStr • ${project.formattedSize}",
+                    fontSize = 11.sp,
+                    color = TextSecondary
+                )
 
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -406,54 +476,113 @@ fun ProjectCard(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .background(GreenSuccess.copy(alpha = 0.2f))
+                        .background(GreenSuccess.copy(alpha = 0.15f))
+                        .border(0.5.dp, GreenSuccess.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
-                    Text(
-                        text = "✂️ ${project.savedPercent}% saved",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GreenSuccess
-                    )
-                }
-            }
-
-            // Quick Actions: Share, EDL Export, and Delete
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                IconButton(
-                    onClick = onShare,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = "Share",
-                        tint = PrimaryCyan,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                if (onExportEdl != null) {
-                    IconButton(
-                        onClick = onExportEdl,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DesktopWindows,
-                            contentDescription = "Export EDL",
-                            tint = ElectricBlue,
-                            modifier = Modifier.size(18.dp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.ContentCut, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(10.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = "${project.savedPercent}% Trimmed",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GreenSuccess
                         )
                     }
                 }
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.DeleteOutline,
-                        contentDescription = "Delete",
-                        tint = TextMuted,
-                        modifier = Modifier.size(20.dp)
-                    )
+            }
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            // Refined Actions: Prominent Studio Edit Pill + Sleek Overflow Menu
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                if (onEditInStudio != null) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(CardDarkElevated)
+                            .border(1.dp, CardBorderSubtle, RoundedCornerShape(10.dp))
+                            .clickable { onEditInStudio() }
+                            .padding(horizontal = 10.dp, vertical = 7.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = "Edit in Studio",
+                                tint = PrimaryCyan,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Edit",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
+                    }
+                }
+
+                var showMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "More Options",
+                            tint = TextSecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        modifier = Modifier
+                            .background(CardDarkElevated)
+                            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Share Media", color = TextPrimary, fontSize = 13.sp) },
+                            onClick = {
+                                showMenu = false
+                                onShare()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Share, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(16.dp))
+                            }
+                        )
+
+                        if (onExportEdl != null) {
+                            DropdownMenuItem(
+                                text = { Text("Export Timeline (.EDL)", color = TextPrimary, fontSize = 13.sp) },
+                                onClick = {
+                                    showMenu = false
+                                    onExportEdl()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.DesktopWindows, contentDescription = null, tint = ElectricBlue, modifier = Modifier.size(16.dp))
+                                }
+                            )
+                        }
+
+                        DropdownMenuItem(
+                            text = { Text("Delete Export", color = SilenceRed, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) },
+                            onClick = {
+                                showMenu = false
+                                onDelete()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = SilenceRed, modifier = Modifier.size(16.dp))
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -465,6 +594,7 @@ fun ProjectCard(
 fun ProjectPlayerDialog(
     project: SavedProject,
     onDismiss: () -> Unit,
+    onEditInStudio: (() -> Unit)? = null,
     onShare: () -> Unit
 ) {
     val context = LocalContext.current
@@ -622,11 +752,29 @@ fun ProjectPlayerDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Secondary Action Row: Open in External Player & Share
+                // Secondary Action Row: Edit Studio, Open in External Player & Share
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    if (onEditInStudio != null) {
+                        OutlinedButton(
+                            onClick = onEditInStudio,
+                            modifier = Modifier
+                                .weight(1.1f)
+                                .height(46.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldPro),
+                            border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
+                                brush = Brush.horizontalGradient(listOf(GoldPro.copy(alpha = 0.6f), GoldPro))
+                            )
+                        ) {
+                            Icon(Icons.Default.Tune, contentDescription = null, tint = GoldPro, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Edit Studio", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        }
+                    }
+
                     OutlinedButton(
                         onClick = {
                             MediaSaver.openMediaInExternalApp(context, file, project.isVideo)
@@ -641,8 +789,8 @@ fun ProjectPlayerDialog(
                         )
                     ) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Open Player", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Player", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     }
 
                     OutlinedButton(
@@ -657,8 +805,8 @@ fun ProjectPlayerDialog(
                         )
                     ) {
                         Icon(Icons.Default.Share, contentDescription = null, tint = ElectricBlue, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Share", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Share", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     }
                 }
             }

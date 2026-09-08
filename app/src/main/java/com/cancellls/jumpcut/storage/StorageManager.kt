@@ -31,6 +31,24 @@ object StorageManager {
         (before - after).coerceAtLeast(0L)
     }
 
+    suspend fun autoPruneOldCache(context: Context, maxAgeHours: Long = 24L): Unit = withContext(Dispatchers.IO) {
+        val maxAgeMs = maxAgeHours * 3600 * 1000L
+        val now = System.currentTimeMillis()
+
+        val candidateDirs = listOf(
+            File(context.cacheDir, "input_cache"),
+            File(context.cacheDir, "downloads")
+        )
+
+        for (dir in candidateDirs) {
+            dir.listFiles()?.forEach { file ->
+                if (file.isFile && (now - file.lastModified()) > maxAgeMs) {
+                    file.delete()
+                }
+            }
+        }
+    }
+
     private fun calculateDirSize(dir: File?): Long {
         if (dir == null || !dir.exists()) return 0L
         var size = 0L

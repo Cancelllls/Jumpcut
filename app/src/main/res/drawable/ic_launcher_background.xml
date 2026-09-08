@@ -4,7 +4,54 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Deep Luxury Midnight Obsidian Studio Canvas -->
     <path
-        android:fillColor="#0B1329"
+        android:fillColor="#07090E"
         android:pathData="M0,0h108v108h-108z" />
+
+    <!-- Ambient Subtle Radial Elevation Disc -->
+    <path
+        android:fillColor="#0E1626"
+        android:pathData="M54,54m-46,0a46,46 0 1,0 92,0a46,46 0 1,0 -92,0" />
+
+    <!-- Precision Studio Guide Aperture Rings -->
+    <path
+        android:strokeColor="#162338"
+        android:strokeWidth="1.2"
+        android:pathData="M54,54m-39,0a39,39 0 1,0 78,0a39,39 0 1,0 -78,0" />
+
+    <path
+        android:strokeColor="#101928"
+        android:strokeWidth="1.0"
+        android:pathData="M54,54m-45,0a45,45 0 1,0 90,0a45,45 0 1,0 -90,0" />
+
+    <!-- Corner Focus Reticles (Precision Hardware Cam Aesthetic) -->
+    <!-- Top-Left Reticle -->
+    <path
+        android:strokeColor="#243854"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M18,24L18,18L24,18" />
+
+    <!-- Top-Right Reticle -->
+    <path
+        android:strokeColor="#243854"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M84,18L90,18L90,24" />
+
+    <!-- Bottom-Left Reticle -->
+    <path
+        android:strokeColor="#243854"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M18,84L18,90L24,90" />
+
+    <!-- Bottom-Right Reticle -->
+    <path
+        android:strokeColor="#243854"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M84,90L90,90L90,84" />
 </vector>

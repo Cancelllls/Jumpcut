@@ -68,6 +68,8 @@ fun EditorScreen(
     onSettingsChanged: (CutSettings) -> Unit,
     onToggleSkipSilence: (Boolean) -> Unit,
     onToggleSegment: (Int) -> Unit,
+    onToggleAllSilences: ((Boolean) -> Unit)? = null,
+    onResetAllSegments: (() -> Unit)? = null,
     onExportConfirm: (ExportConfig) -> Unit,
     onSavePreset: ((String, CutSettings) -> Unit)? = null,
     onExportEdl: ((Boolean) -> Unit)? = null,
@@ -93,10 +95,14 @@ fun EditorScreen(
     var currentPositionMs by remember { mutableLongStateOf(0L) }
     var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
     var isComparingRaw by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: Parameters, 1: Segments List
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Parameters, 1: Presets, 2: Silence Inspector
     var showExportSheet by remember { mutableStateOf(false) }
     var showSavePresetDialog by remember { mutableStateOf(false) }
     var newPresetName by remember { mutableStateOf("") }
+
+    // Audition specific pause segment state
+    var auditionTargetEndMs by remember { mutableLongStateOf(-1L) }
+    var auditioningPauseId by remember { mutableStateOf<Int?>(null) }
 
     // Initialize ExoPlayer
     val exoPlayer = remember {
@@ -110,6 +116,10 @@ fun EditorScreen(
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
+                if (!playing) {
+                    auditioningPauseId = null
+                    auditionTargetEndMs = -1L
+                }
             }
         }
         exoPlayer.addListener(listener)
@@ -125,13 +135,17 @@ fun EditorScreen(
         exoPlayer.playbackParameters = PlaybackParameters(playbackSpeed)
     }
 
-    // Playback loop tracking position & auto-skipping silence (suspended during A/B raw comparison)
-    LaunchedEffect(isPlaying, skipSilencePreview, isComparingRaw, segments) {
+    // Playback loop tracking position & auto-skipping silence (suspended during A/B raw comparison and pause auditioning)
+    LaunchedEffect(isPlaying, skipSilencePreview, isComparingRaw, segments, auditionTargetEndMs) {
         while (isPlaying) {
             val pos = exoPlayer.currentPosition
             currentPositionMs = pos
 
-            if (skipSilencePreview && !isComparingRaw) {
+            if (auditionTargetEndMs > 0L && pos >= auditionTargetEndMs) {
+                exoPlayer.pause()
+                auditionTargetEndMs = -1L
+                auditioningPauseId = null
+            } else if (skipSilencePreview && !isComparingRaw && auditionTargetEndMs <= 0L) {
                 val currentSilence = segments.firstOrNull {
                     it.isSilence && !it.isExcluded && pos in it.startMs until it.endMs
                 }
@@ -151,86 +165,109 @@ fun EditorScreen(
             .fillMaxSize()
             .background(BgDark)
     ) {
-        // Top Action Bar
-        Row(
+        // Top Action Bar Dock
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .border(
+                    width = 0.5.dp,
+                    brush = Brush.verticalGradient(listOf(CardBorderSubtle, Color.Transparent)),
+                    shape = RoundedCornerShape(0.dp)
+                ),
+            color = SurfaceDark
         ) {
-            IconButton(
-                onClick = onBackClick,
+            Row(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(CardDark)
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
-            }
-
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.weight(1f).padding(horizontal = 10.dp)
-            ) {
-                Text(
-                    text = media.name,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "${silences.size} silences detected",
-                    fontSize = 11.sp,
-                    color = TextSecondary
-                )
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (onExportEdl != null) {
-                    IconButton(
-                        onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onExportEdl(false)
-                        },
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(CardDark)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DesktopWindows,
-                            contentDescription = "Export EDL",
-                            tint = PrimaryCyan,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
+                IconButton(
+                    onClick = onBackClick,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(CardDarkElevated)
+                        .border(1.dp, CardBorderSubtle, CircleShape)
+                ) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
                 }
 
-                // Time Saved Badge
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Brush.horizontalGradient(listOf(GreenSuccess, PrimaryCyan)))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                val cleanTitle = remember(media.name) {
+                    media.name
+                        .replace(Regex("^JumpCut_"), "")
+                        .replace(Regex("_\\d{10,}.*$"), "")
+                        .replace("_", " ")
+                        .ifBlank { media.name }
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f).padding(horizontal = 10.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCut,
-                            contentDescription = null,
-                            tint = BgDark,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "-${formatTime((originalDurationMs - cutDurationMs).coerceAtLeast(0))} ($savedPercent%)",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = BgDark
-                        )
+                    Text(
+                        text = cleanTitle,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "${silences.size} silences detected • lossless mode",
+                        fontSize = 10.sp,
+                        color = TextSecondary
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onExportEdl != null) {
+                        IconButton(
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onExportEdl(false)
+                            },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(CardDarkElevated)
+                                .border(1.dp, CardBorderSubtle, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DesktopWindows,
+                                contentDescription = "Export EDL",
+                                tint = PrimaryCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+
+                    // Time Saved Badge (Sophisticated Translucent Emerald Pill)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(GreenSuccess.copy(alpha = 0.15f))
+                            .border(1.dp, GreenSuccess.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCut,
+                                contentDescription = null,
+                                tint = GreenSuccess,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "-${formatTime((originalDurationMs - cutDurationMs).coerceAtLeast(0))} ($savedPercent%)",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = GreenSuccess,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            )
+                        }
                     }
                 }
             }
@@ -343,28 +380,38 @@ fun EditorScreen(
                         text = formatTime(currentPositionMs),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = PrimaryCyan
+                        color = PrimaryCyan,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                     )
                     Text(
                         text = " / ${formatTime(originalDurationMs)}",
                         fontSize = 12.sp,
-                        color = TextSecondary
+                        color = TextSecondary,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                     )
                 }
 
-                // Speed Selector Chips
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Connected Segmented Speed Selector Capsule
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(CardDarkElevated)
+                        .border(1.dp, CardBorderSubtle, RoundedCornerShape(8.dp))
+                        .padding(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
                     listOf(1.0f, 1.5f, 2.0f).forEach { speed ->
                         val isSelected = playbackSpeed == speed
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (isSelected) PrimaryCyan else CardDark)
+                                .background(if (isSelected) PrimaryCyan else Color.Transparent)
                                 .clickable {
                                     playbackSpeed = speed
                                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 }
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .padding(horizontal = 7.dp, vertical = 3.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = "${speed}x",
@@ -380,8 +427,8 @@ fun EditorScreen(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (isComparingRaw) SilenceRed else CardDark)
-                        .border(1.dp, if (isComparingRaw) SilenceRed else CardBorder, RoundedCornerShape(8.dp))
+                        .background(if (isComparingRaw) SilenceRed else CardDarkElevated)
+                        .border(1.dp, if (isComparingRaw) SilenceRed else CardBorderSubtle, RoundedCornerShape(8.dp))
                         .pointerInput(Unit) {
                             awaitPointerEventScope {
                                 while (true) {
@@ -393,14 +440,15 @@ fun EditorScreen(
                                 }
                             }
                         }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .padding(horizontal = 8.dp, vertical = 5.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (isComparingRaw) "AUDITIONING RAW" else "HOLD FOR RAW",
+                        text = if (isComparingRaw) "RAW ACTIVE" else "HOLD RAW",
                         fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isComparingRaw) TextPrimary else TextSecondary
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (isComparingRaw) TextPrimary else TextSecondary,
+                        letterSpacing = 0.5.sp
                     )
                 }
 
@@ -418,9 +466,9 @@ fun EditorScreen(
                         onCheckedChange = { onToggleSkipSilence(it) },
                         modifier = Modifier.height(24.dp),
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = TextPrimary,
+                            checkedThumbColor = BgDark,
                             checkedTrackColor = PrimaryCyan,
-                            uncheckedTrackColor = CardDark
+                            uncheckedTrackColor = CardDarkElevated
                         )
                     )
                 }
@@ -440,9 +488,9 @@ fun EditorScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(SurfaceDark)
-                    .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(StudioCardBrush)
+                    .border(1.dp, StudioCardBorderBrush, RoundedCornerShape(16.dp))
                     .padding(horizontal = 10.dp, vertical = 8.dp)
             )
         }
@@ -466,18 +514,18 @@ fun EditorScreen(
                 divider = {},
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(SurfaceDark)
-                    .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+                    .border(1.dp, CardBorderSubtle, RoundedCornerShape(14.dp))
                     .padding(3.dp)
             ) {
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (selectedTab == 0) CardDark else Color.Transparent)
-                        .padding(vertical = 7.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(if (selectedTab == 0) CardDarkElevated else Color.Transparent)
+                        .padding(vertical = 8.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Tune, contentDescription = null, tint = if (selectedTab == 0) PrimaryCyan else TextSecondary, modifier = Modifier.size(14.dp))
@@ -495,9 +543,9 @@ fun EditorScreen(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (selectedTab == 1) CardDark else Color.Transparent)
-                        .padding(vertical = 7.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(if (selectedTab == 1) CardDarkElevated else Color.Transparent)
+                        .padding(vertical = 8.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = if (selectedTab == 1) PrimaryCyan else TextSecondary, modifier = Modifier.size(14.dp))
@@ -515,9 +563,9 @@ fun EditorScreen(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (selectedTab == 2) CardDark else Color.Transparent)
-                        .padding(vertical = 7.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(if (selectedTab == 2) CardDarkElevated else Color.Transparent)
+                        .padding(vertical = 8.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.VolumeMute, contentDescription = null, tint = if (selectedTab == 2) PrimaryCyan else TextSecondary, modifier = Modifier.size(14.dp))
@@ -539,164 +587,261 @@ fun EditorScreen(
                 0 -> {
                     // TAB 0: PRECISION TUNING SLIDERS
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(1.dp, StudioCardBorderBrush, RoundedCornerShape(16.dp)),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+                        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
                     ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            // Live Impact Readout Banner with Voice Discriminator stats
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(CardDark)
-                                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                            ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(StudioCardBrush)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                // Live Impact Readout Banner with Voice Discriminator stats
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(CardDarkElevated)
+                                        .border(1.dp, CardBorderSubtle, RoundedCornerShape(10.dp))
+                                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = "VOICE DISCRIMINATOR",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = TextMuted,
+                                                letterSpacing = 0.5.sp
+                                            )
+                                            Text(
+                                                text = "Room Noise Floor: ${estimatedNoiseFloorDb.toInt()} dB",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (estimatedNoiseFloorDb > -35f) GoldPro else PrimaryCyan,
+                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                            )
+                                        }
+                                        Text(
+                                            text = "${silences.size} cuts • -${formatTime((originalDurationMs - cutDurationMs).coerceAtLeast(0))}",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = GreenSuccess,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // Quick Rhythm Presets Bar
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    val quickPresets = listOf(
+                                        Triple("Shorts / Fast", Icons.Default.Bolt, CutSettings(silenceThresholdDb = -30f, minSilenceDurationMs = 200L, paddingMs = 35L, voiceNoiseRejection = 0.70f)),
+                                        Triple("YouTube Video", Icons.Default.SmartDisplay, CutSettings(silenceThresholdDb = -32f, minSilenceDurationMs = 320L, paddingMs = 50L, voiceNoiseRejection = 0.65f)),
+                                        Triple("Podcast / Natural", Icons.Default.Mic, CutSettings(silenceThresholdDb = -35f, minSilenceDurationMs = 500L, paddingMs = 80L, voiceNoiseRejection = 0.55f)),
+                                        Triple("Lecture / Seminar", Icons.Default.School, CutSettings(silenceThresholdDb = -38f, minSilenceDurationMs = 650L, paddingMs = 90L, voiceNoiseRejection = 0.50f))
+                                    )
+                                    quickPresets.forEach { (label, icon, presetSettings) ->
+                                        val isActive = cutSettings.minSilenceDurationMs == presetSettings.minSilenceDurationMs &&
+                                                       cutSettings.silenceThresholdDb == presetSettings.silenceThresholdDb
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(if (isActive) PrimaryCyan.copy(alpha = 0.18f) else CardDarkElevated)
+                                                .border(1.dp, if (isActive) PrimaryCyan else CardBorderSubtle, RoundedCornerShape(8.dp))
+                                                .clickable {
+                                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                    onSettingsChanged(presetSettings)
+                                                }
+                                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(icon, contentDescription = null, tint = if (isActive) PrimaryCyan else TextSecondary, modifier = Modifier.size(13.dp))
+                                                Spacer(modifier = Modifier.width(5.dp))
+                                                Text(
+                                                    text = label,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
+                                                    color = if (isActive) PrimaryCyan else TextPrimary
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Slider 1: Voice vs Background Noise Armor
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.GraphicEq, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(text = "Voice vs Noise Armor", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                        }
+                                        Text(text = "Filters out fans, A/C, street rumble & room hum", fontSize = 10.sp, color = TextSecondary)
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(CardDarkElevated)
+                                            .border(1.dp, CardBorderSubtle, RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = "${(cutSettings.voiceNoiseRejection * 100).toInt()}%",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = PrimaryCyan,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                                Slider(
+                                    value = cutSettings.voiceNoiseRejection,
+                                    onValueChange = { onSettingsChanged(cutSettings.copy(voiceNoiseRejection = it)) },
+                                    valueRange = 0.15f..0.95f,
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = PrimaryCyan,
+                                        activeTrackColor = PrimaryCyan,
+                                        inactiveTrackColor = CardDarkElevated
+                                    )
+                                )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // Slider 2: Silence Sensitivity (dB)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column {
+                                        Text(text = "Silence Sensitivity", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                        Text(text = "Base cutoff threshold", fontSize = 10.sp, color = TextSecondary)
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(CardDarkElevated)
+                                            .border(1.dp, CardBorderSubtle, RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
                                         Text(
-                                            text = "VOICE DISCRIMINATOR",
-                                            fontSize = 9.sp,
+                                            text = "${cutSettings.silenceThresholdDb.toInt()} dB",
+                                            fontSize = 12.sp,
                                             fontWeight = FontWeight.ExtraBold,
-                                            color = TextMuted,
-                                            letterSpacing = 0.5.sp
-                                        )
-                                        Text(
-                                            text = "Room Noise Floor: ${estimatedNoiseFloorDb.toInt()} dB",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (estimatedNoiseFloorDb > -35f) GoldPro else PrimaryCyan
+                                            color = PrimaryCyan,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                                         )
                                     }
-                                    Text(
-                                        text = "${silences.size} cuts • -${formatTime((originalDurationMs - cutDurationMs).coerceAtLeast(0))}",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = GreenSuccess
+                                }
+                                Slider(
+                                    value = cutSettings.silenceThresholdDb,
+                                    onValueChange = { onSettingsChanged(cutSettings.copy(silenceThresholdDb = it)) },
+                                    valueRange = -45f..-18f,
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = PrimaryCyan,
+                                        activeTrackColor = PrimaryCyan,
+                                        inactiveTrackColor = CardDarkElevated
                                     )
-                                }
-                            }
+                                )
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
 
-                            // Slider 1: Voice vs Background Noise Armor
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.GraphicEq, contentDescription = null, tint = GoldPro, modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(text = "Voice vs Noise Armor", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                // Slider 3: Min Silence Duration
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(text = "Minimum Silence Length", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                        Text(text = "Shorter pauses are left untouched", fontSize = 10.sp, color = TextSecondary)
                                     }
-                                    Text(text = "Filters out fans, A/C, street rumble & room hum", fontSize = 10.sp, color = TextSecondary)
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(CardDarkElevated)
+                                            .border(1.dp, CardBorderSubtle, RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = "${cutSettings.minSilenceDurationMs} ms",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = PrimaryCyan,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                        )
+                                    }
                                 }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(GoldPro.copy(alpha = 0.15f))
-                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                Slider(
+                                    value = cutSettings.minSilenceDurationMs.toFloat(),
+                                    onValueChange = { onSettingsChanged(cutSettings.copy(minSilenceDurationMs = it.toLong())) },
+                                    valueRange = 150f..800f,
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = PrimaryCyan,
+                                        activeTrackColor = PrimaryCyan,
+                                        inactiveTrackColor = CardDarkElevated
+                                    )
+                                )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // Slider 4: Speech Padding Buffer
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(text = "${(cutSettings.voiceNoiseRejection * 100).toInt()}%", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = GoldPro)
+                                    Column {
+                                        Text(text = "Word Padding Armor", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                        Text(text = "Safety buffer to prevent clipping word edges", fontSize = 10.sp, color = TextSecondary)
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(CardDarkElevated)
+                                            .border(1.dp, CardBorderSubtle, RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = "${cutSettings.paddingMs} ms",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = PrimaryCyan,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                        )
+                                    }
                                 }
-                            }
-                            Slider(
-                                value = cutSettings.voiceNoiseRejection,
-                                onValueChange = { onSettingsChanged(cutSettings.copy(voiceNoiseRejection = it)) },
-                                valueRange = 0.15f..0.95f,
-                                colors = SliderDefaults.colors(thumbColor = GoldPro, activeTrackColor = GoldPro)
-                            )
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Slider 2: Silence Sensitivity (dB)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(text = "Silence Sensitivity", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                                    Text(text = "Base cutoff threshold", fontSize = 10.sp, color = TextSecondary)
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(PrimaryCyan.copy(alpha = 0.15f))
-                                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                                ) {
-                                    Text(text = "${cutSettings.silenceThresholdDb.toInt()} dB", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = PrimaryCyan)
-                                }
-                            }
-                            Slider(
-                                value = cutSettings.silenceThresholdDb,
-                                onValueChange = { onSettingsChanged(cutSettings.copy(silenceThresholdDb = it)) },
-                                valueRange = -45f..-18f,
-                                colors = SliderDefaults.colors(thumbColor = PrimaryCyan, activeTrackColor = PrimaryCyan)
-                            )
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Slider 3: Min Silence Duration
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(text = "Minimum Silence Length", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                                    Text(text = "Shorter pauses are left untouched", fontSize = 10.sp, color = TextSecondary)
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(ElectricBlue.copy(alpha = 0.15f))
-                                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                                ) {
-                                    Text(text = "${cutSettings.minSilenceDurationMs} ms", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = ElectricBlue)
-                                }
-                            }
-                            Slider(
-                                value = cutSettings.minSilenceDurationMs.toFloat(),
-                                onValueChange = { onSettingsChanged(cutSettings.copy(minSilenceDurationMs = it.toLong())) },
-                                valueRange = 150f..800f,
-                                colors = SliderDefaults.colors(thumbColor = ElectricBlue, activeTrackColor = ElectricBlue)
-                            )
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Slider 4: Speech Padding Buffer
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(text = "Word Padding Armor", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                                    Text(text = "Safety buffer to prevent clipping word edges", fontSize = 10.sp, color = TextSecondary)
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(GreenSuccess.copy(alpha = 0.15f))
-                                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                                ) {
-                                    Text(text = "${cutSettings.paddingMs} ms", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = GreenSuccess)
-                                }
-                            }
-                            Slider(
-                                value = cutSettings.paddingMs.toFloat(),
-                                onValueChange = { onSettingsChanged(cutSettings.copy(paddingMs = it.toLong())) },
-                                valueRange = 15f..120f,
-                                colors = SliderDefaults.colors(thumbColor = GreenSuccess, activeTrackColor = GreenSuccess)
-                            )
+                                Slider(
+                                    value = cutSettings.paddingMs.toFloat(),
+                                    onValueChange = { onSettingsChanged(cutSettings.copy(paddingMs = it.toLong())) },
+                                    valueRange = 15f..120f,
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = PrimaryCyan,
+                                        activeTrackColor = PrimaryCyan,
+                                        inactiveTrackColor = CardDarkElevated
+                                    )
+                                )
 
                             Spacer(modifier = Modifier.height(10.dp))
 
@@ -727,8 +872,8 @@ fun EditorScreen(
                                     checked = cutSettings.autoNoiseFloor,
                                     onCheckedChange = { onSettingsChanged(cutSettings.copy(autoNoiseFloor = it)) },
                                     colors = SwitchDefaults.colors(
-                                        checkedThumbColor = PrimaryCyan,
-                                        checkedTrackColor = PrimaryCyan.copy(alpha = 0.35f),
+                                        checkedThumbColor = BgDark,
+                                        checkedTrackColor = PrimaryCyan,
                                         uncheckedThumbColor = TextMuted,
                                         uncheckedTrackColor = SurfaceDark
                                     )
@@ -755,12 +900,13 @@ fun EditorScreen(
                                             fontWeight = FontWeight.Bold,
                                             color = TextPrimary
                                         )
-                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
                                         Box(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(4.dp))
-                                                .background(GoldPro.copy(alpha = 0.2f))
-                                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                                                .background(GoldPro.copy(alpha = 0.15f))
+                                                .border(0.5.dp, GoldPro.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                                                .padding(horizontal = 5.dp, vertical = 1.dp)
                                         ) {
                                             Text("-14 LUFS", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = GoldPro)
                                         }
@@ -775,8 +921,8 @@ fun EditorScreen(
                                     checked = cutSettings.studioAudioLeveling,
                                     onCheckedChange = { onSettingsChanged(cutSettings.copy(studioAudioLeveling = it)) },
                                     colors = SwitchDefaults.colors(
-                                        checkedThumbColor = GoldPro,
-                                        checkedTrackColor = GoldPro.copy(alpha = 0.35f),
+                                        checkedThumbColor = BgDark,
+                                        checkedTrackColor = GoldPro,
                                         uncheckedThumbColor = TextMuted,
                                         uncheckedTrackColor = SurfaceDark
                                     )
@@ -812,8 +958,8 @@ fun EditorScreen(
                                     checked = cutSettings.roomToneSmoothing,
                                     onCheckedChange = { onSettingsChanged(cutSettings.copy(roomToneSmoothing = it)) },
                                     colors = SwitchDefaults.colors(
-                                        checkedThumbColor = PrimaryCyan,
-                                        checkedTrackColor = PrimaryCyan.copy(alpha = 0.35f),
+                                        checkedThumbColor = BgDark,
+                                        checkedTrackColor = PrimaryCyan,
                                         uncheckedThumbColor = TextMuted,
                                         uncheckedTrackColor = SurfaceDark
                                     )
@@ -822,8 +968,9 @@ fun EditorScreen(
                         }
                     }
                 }
+            }
 
-                1 -> {
+            1 -> {
                     // TAB 1: RHYTHM PRESETS & CUSTOM PROFILES
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -955,12 +1102,88 @@ fun EditorScreen(
                         border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
-                            Text(
-                                text = "Tap any silence to seek. Toggle to force-keep specific pauses.",
-                                fontSize = 11.sp,
-                                color = TextSecondary
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Tap to seek • Audition pauses before cutting",
+                                    fontSize = 11.sp,
+                                    color = TextSecondary
+                                )
+                            }
+
                             Spacer(modifier = Modifier.height(10.dp))
+
+                            // Batch Action Toolbar (Cut All, Keep All, Reset Defaults)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(SilenceRed.copy(alpha = 0.15f))
+                                        .border(1.dp, SilenceRed.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            onToggleAllSilences?.invoke(true)
+                                        }
+                                        .padding(vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.ContentCut, contentDescription = null, tint = SilenceRed, modifier = Modifier.size(12.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Cut All", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SilenceRed)
+                                    }
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(GreenSuccess.copy(alpha = 0.15f))
+                                        .border(1.dp, GreenSuccess.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            onToggleAllSilences?.invoke(false)
+                                        }
+                                        .padding(vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(12.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Keep All", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GreenSuccess)
+                                    }
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(CardDark)
+                                        .border(1.dp, CardBorder, RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            onResetAllSegments?.invoke()
+                                        }
+                                        .padding(vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Refresh, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(12.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Reset", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             if (silences.isEmpty()) {
                                 Box(
@@ -974,28 +1197,30 @@ fun EditorScreen(
                             } else {
                                 silences.take(40).forEachIndexed { idx, seg ->
                                     val isKept = seg.isExcluded
+                                    val isAuditioningThis = auditioningPauseId == seg.id && isPlaying
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(vertical = 3.dp)
                                             .clip(RoundedCornerShape(10.dp))
-                                            .background(CardDark)
+                                            .background(if (isAuditioningThis) PrimaryCyan.copy(alpha = 0.08f) else CardDark)
+                                            .border(1.dp, if (isAuditioningThis) PrimaryCyan.copy(alpha = 0.5f) else Color.Transparent, RoundedCornerShape(10.dp))
                                             .clickable {
                                                 exoPlayer.seekTo(seg.startMs)
                                                 currentPositionMs = seg.startMs
                                             }
-                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                             Icon(
                                                 imageVector = Icons.Default.VolumeMute,
                                                 contentDescription = null,
                                                 tint = if (isKept) GreenSuccess else SilenceRed,
                                                 modifier = Modifier.size(16.dp)
                                             )
-                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Spacer(modifier = Modifier.width(8.dp))
                                             Column {
                                                 Text(
                                                     text = "Pause #${idx + 1}: ${formatTime(seg.startMs)} → ${formatTime(seg.endMs)}",
@@ -1011,22 +1236,54 @@ fun EditorScreen(
                                             }
                                         }
 
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .background(if (isKept) GreenSuccess.copy(alpha = 0.2f) else SilenceRed.copy(alpha = 0.2f))
-                                                .clickable {
-                                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    onToggleSegment(seg.id)
-                                                }
-                                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                                        ) {
-                                            Text(
-                                                text = if (isKept) "KEPT" else "CUT",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isKept) GreenSuccess else SilenceRed
-                                            )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            // Mini Audition Play/Stop Button
+                                            IconButton(
+                                                onClick = {
+                                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                    if (isAuditioningThis) {
+                                                        exoPlayer.pause()
+                                                        auditioningPauseId = null
+                                                        auditionTargetEndMs = -1L
+                                                    } else {
+                                                        val auditionStart = (seg.startMs - 150L).coerceAtLeast(0L)
+                                                        val auditionEnd = (seg.endMs + 150L).coerceAtMost(originalDurationMs)
+                                                        auditioningPauseId = seg.id
+                                                        auditionTargetEndMs = auditionEnd
+                                                        exoPlayer.seekTo(auditionStart)
+                                                        currentPositionMs = auditionStart
+                                                        exoPlayer.play()
+                                                    }
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (isAuditioningThis) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
+                                                    contentDescription = "Audition Pause",
+                                                    tint = if (isAuditioningThis) GoldPro else PrimaryCyan,
+                                                    modifier = Modifier.size(22.dp)
+                                                )
+                                            }
+
+                                            Spacer(modifier = Modifier.width(4.dp))
+
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(if (isKept) GreenSuccess.copy(alpha = 0.2f) else SilenceRed.copy(alpha = 0.2f))
+                                                    .clickable {
+                                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        onToggleSegment(seg.id)
+                                                    }
+                                                    .padding(horizontal = 8.dp, vertical = 5.dp)
+                                            ) {
+                                                Text(
+                                                    text = if (isKept) "KEPT" else "CUT",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isKept) GreenSuccess else SilenceRed
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1055,15 +1312,11 @@ fun EditorScreen(
                 Button(
                     onClick = {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        if (!isProUser && remainingExports <= 0) {
-                            onOpenPro()
-                        } else {
-                            showExportSheet = true
-                        }
+                        showExportSheet = true
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp),
+                        .height(52.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                     contentPadding = PaddingValues()
@@ -1072,8 +1325,9 @@ fun EditorScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(
-                                if (!isProUser && remainingExports <= 0) Brush.horizontalGradient(listOf(SilenceRed, PrimaryCyan))
-                                else Brush.horizontalGradient(listOf(PrimaryCyan, ElectricBlue))
+                                if (!isProUser && remainingExports <= 0) Brush.horizontalGradient(listOf(SilenceRed, SilenceRed.copy(alpha = 0.8f)))
+                                else StudioTealGradient,
+                                RoundedCornerShape(16.dp)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -1081,15 +1335,15 @@ fun EditorScreen(
                             Icon(
                                 imageVector = if (!isProUser && remainingExports <= 0) Icons.Default.Lock else Icons.Default.ContentCut,
                                 contentDescription = "Export",
-                                tint = if (!isProUser && remainingExports <= 0) TextPrimary else BgDark
+                                tint = BgDark
                             )
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = if (!isProUser && remainingExports <= 0) "Daily Limit Reached (2/2 Used) • Get Pro"
                                        else "Export Clean Media (${formatTime(cutDurationMs)})",
-                                fontSize = 15.sp,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (!isProUser && remainingExports <= 0) TextPrimary else BgDark
+                                color = BgDark
                             )
                         }
                     }

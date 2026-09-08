@@ -70,51 +70,59 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .clickable { onOpenPro() },
+                .clickable { onOpenPro() }
+                .border(
+                    1.dp,
+                    if (isProUser) StudioGoldGradient else StudioCardBorderBrush,
+                    RoundedCornerShape(20.dp)
+                ),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-            border = CardDefaults.outlinedCardBorder().copy(
-                brush = Brush.horizontalGradient(if (isProUser) listOf(GoldPro, GoldPro) else listOf(PrimaryCyan, ElectricBlue))
-            )
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent)
         ) {
-            Row(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .background(StudioCardBrush)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(46.dp)
-                            .clip(CircleShape)
-                            .background(if (isProUser) GoldPro else CardDark),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = null,
-                            tint = if (isProUser) BgDark else GoldPro,
-                            modifier = Modifier.size(26.dp)
-                        )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(CircleShape)
+                                .background(if (isProUser) GoldPro else CardDarkElevated),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = if (isProUser) BgDark else GoldPro,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column {
+                            Text(
+                                text = if (isProUser) "JumpCut PRO Active" else "Upgrade to JumpCut PRO",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = if (isProUser) "Unlimited 4K exports & priority rendering" else "Unlock 4K 60FPS, batch cutting & voice armor",
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.width(14.dp))
-                    Column {
-                        Text(
-                            text = if (isProUser) "JumpCut PRO Active" else "Upgrade to JumpCut PRO",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = if (isProUser) "Unlimited 4K exports & priority rendering" else "Unlock 4K 60FPS, batch cutting & voice armor",
-                            fontSize = 12.sp,
-                            color = TextSecondary
-                        )
-                    }
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextMuted)
                 }
-                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextMuted)
             }
         }
 
@@ -130,51 +138,61 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .border(1.dp, StudioCardBorderBrush, RoundedCornerShape(18.dp)),
             shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = SurfaceDark)
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent)
         ) {
-            Column(modifier = Modifier.padding(18.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Storage, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(22.dp))
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(text = "Temporary Cache", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(CardDark)
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(StudioCardBrush)
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = cacheSize, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PrimaryCyan)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Storage, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(22.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(text = "Temporary Cache", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(CardDarkElevated)
+                                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(text = cacheSize, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PrimaryCyan)
+                        }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                Text(
-                    text = "Includes temporary decoded waveforms, URL downloads, and render buffers. Cleaning will not affect your saved project exports.",
-                    fontSize = 12.sp,
-                    color = TextSecondary
-                )
+                    Text(
+                        text = "Includes temporary decoded waveforms, URL downloads, and render buffers. Cleaning will not affect your saved project exports.",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                OutlinedButton(
-                    onClick = { showClearConfirm = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder)))
-                ) {
-                    Icon(Icons.Default.CleaningServices, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Clear Temporary Cache", fontSize = 13.sp)
+                    OutlinedButton(
+                        onClick = { showClearConfirm = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
+                        border = ButtonDefaults.outlinedButtonBorder.copy(brush = StudioCardBorderBrush)
+                    ) {
+                        Icon(Icons.Default.CleaningServices, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Clear Temporary Cache", fontSize = 13.sp)
+                    }
                 }
             }
         }
@@ -220,7 +238,7 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
-            border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder)))
+            border = ButtonDefaults.outlinedButtonBorder.copy(brush = StudioCardBorderBrush)
         ) {
             Icon(Icons.Default.HelpOutline, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
@@ -230,11 +248,22 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(28.dp))
 
         // About & Version
+        var devTapCount by remember { mutableStateOf(0) }
         Box(
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clickable {
+                    devTapCount++
+                    if (devTapCount >= 5) {
+                        devTapCount = 0
+                        com.cancellls.jumpcut.billing.UsageQuotaManager.resetQuotaForTesting(context)
+                        android.widget.Toast.makeText(context, "Testing: Quota Reset (2/2)", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            ) {
                 Text(
                     text = "JumpCut AI v$appVersion",
                     fontSize = 13.sp,
@@ -295,7 +324,8 @@ fun SettingInfoRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(SurfaceDark)
+            .background(StudioCardBrush)
+            .border(1.dp, StudioCardBorderBrush, RoundedCornerShape(16.dp))
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -303,7 +333,7 @@ fun SettingInfoRow(
             modifier = Modifier
                 .size(38.dp)
                 .clip(CircleShape)
-                .background(CardDark),
+                .background(CardDarkElevated),
             contentAlignment = Alignment.Center
         ) {
             Icon(imageVector = icon, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(20.dp))

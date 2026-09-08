@@ -48,39 +48,56 @@ object SilenceDetector {
         // High rejection -> strictly requires high vocal confidence and clear SNR above ambient noise
         // Low rejection -> permissive, accepts softer speech
         val rejection = settings.voiceNoiseRejection.coerceIn(0.10f, 0.95f)
-        val requiredSnrDb = 2.0f + (rejection * 6.5f) // 2.5dB to 8.2dB above noise floor
-        val requiredConfidence = 0.20f + (rejection * 0.40f) // 0.24 to 0.58
+        val onsetSnrDb = 2.0f + (rejection * 6.5f) // 2.5dB to 8.2dB above noise floor
+        val exitSnrDb = (onsetSnrDb - 2.8f).coerceAtLeast(0.8f) // Hysteresis floor for trailing syllables
 
-        // 1. Voice vs Background Noise window discrimination
+        val onsetConfidence = 0.20f + (rejection * 0.40f) // 0.24 to 0.58
+        val exitConfidence = (onsetConfidence - 0.12f).coerceAtLeast(0.18f)
+
+        // 1. Dual-Threshold Schmitt-Trigger Hysteresis (Voice vs Background Noise)
+        var currentlySpeaking = false
         val isSpeechArray = BooleanArray(count) { i ->
             val rawDb = dbs[i]
             if (rawDb < (settings.silenceThresholdDb - 10f)) {
                 // Hard floor: digital silence
+                currentlySpeaking = false
                 false
             } else if (!hasRichVoiceFeatures) {
-                rawDb >= settings.silenceThresholdDb
+                val thresh = if (currentlySpeaking) settings.silenceThresholdDb - 3.0f else settings.silenceThresholdDb
+                val isSpeech = rawDb >= thresh
+                currentlySpeaking = isSpeech
+                isSpeech
             } else {
                 val vDb = if (i < voiceDbs.size) voiceDbs[i] else rawDb
                 val conf = if (i < voiceConf.size) voiceConf[i] else 0.5f
 
+                val activeSnr = if (currentlySpeaking) exitSnrDb else onsetSnrDb
+                val activeConf = if (currentlySpeaking) exitConfidence else onsetConfidence
+
                 val isAboveFloor = if (settings.autoNoiseFloor) {
-                    (vDb >= (noiseFloor + requiredSnrDb)) || (rawDb >= (settings.silenceThresholdDb + 6f))
+                    (vDb >= (noiseFloor + activeSnr)) || (rawDb >= (settings.silenceThresholdDb + (if (currentlySpeaking) 3f else 6f)))
                 } else {
-                    rawDb >= settings.silenceThresholdDb
+                    rawDb >= (settings.silenceThresholdDb - (if (currentlySpeaking) 3.5f else 0f))
                 }
 
-                val hasVoiceAcoustics = conf >= requiredConfidence
-                isAboveFloor && hasVoiceAcoustics
+                val hasVoiceAcoustics = conf >= activeConf
+                val isSpeech = isAboveFloor && hasVoiceAcoustics
+                currentlySpeaking = isSpeech
+                isSpeech
             }
         }
 
-        // 2. Consonant Lookahead & Hangover Smoothing
-        // Lookahead (120ms): preserves unvoiced onset consonants ("s", "t", "p", "f", "k")
-        // Hangover (150ms): preserves trailing decay, breath, and trailing consonants
-        val smoothedSpeech = BooleanArray(count)
-        val lookaheadFrames = 4
-        val hangoverFrames = 5
+        // 2. Preset-Adaptive Consonant Lookahead & Hangover Smoothing
+        // Lookahead: dynamically scales with padding to preserve unvoiced onset consonants ("s", "t", "p", "f", "k")
+        // Hangover: dynamically scales with rhythm pacing (shorter for snappy shorts, longer for relaxed podcasts)
+        val lookaheadFrames = (settings.paddingMs / 25L).toInt().coerceIn(3, 6)
+        val hangoverFrames = when {
+            settings.minSilenceDurationMs <= 250L -> 3 // 90ms for punchy shorts
+            settings.minSilenceDurationMs >= 500L -> 7 // 210ms for relaxed podcast cadence
+            else -> 5 // 150ms default
+        }
 
+        val smoothedSpeech = BooleanArray(count)
         for (i in 0 until count) {
             if (isSpeechArray[i]) {
                 val lookaheadStart = max(0, i - lookaheadFrames)

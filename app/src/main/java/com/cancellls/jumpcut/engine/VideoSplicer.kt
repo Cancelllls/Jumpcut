@@ -44,7 +44,8 @@ object VideoSplicer {
         microCrossfade: Boolean = true,
         studioAudioLeveling: Boolean = true,
         roomToneSmoothing: Boolean = true,
-        ambientNoiseFloorDb: Float = -40f
+        ambientNoiseFloorDb: Float = -40f,
+        videoResolution: String = "original"
     ): Flow<SplicerProgress> = callbackFlow {
         val maxDuration = if (totalDurationMs > 0L) totalDurationMs else Long.MAX_VALUE
         val validSegments = speechSegments.mapNotNull { seg ->
@@ -82,12 +83,17 @@ object VideoSplicer {
         val handler = Handler(Looper.getMainLooper())
         val progressHolder = ProgressHolder()
 
-        // Maintain uniform video effects across all sequence items when auto-zoom is enabled:
+        // Maintain uniform video effects across all sequence items (resolution downscale + auto-zoom punch-ins):
+        val baseScale = when (videoResolution.lowercase()) {
+            "720p" -> 0.67f
+            else -> 1.0f
+        }
+
         val punchInZoomEffect = ScaleAndRotateTransformation.Builder()
-            .setScale(1.12f, 1.12f)
+            .setScale(baseScale * 1.12f, baseScale * 1.12f)
             .build()
         val identityZoomEffect = ScaleAndRotateTransformation.Builder()
-            .setScale(1.0f, 1.0f)
+            .setScale(baseScale, baseScale)
             .build()
 
         val editedMediaItems = mergedSegments.mapIndexed { index, seg ->
@@ -113,8 +119,14 @@ object VideoSplicer {
                 .setRemoveVideo(extractAudioOnly)
                 .setFlattenForSlowMotion(false)
 
-            val videoEffects = if (!extractAudioOnly && autoZoomJumpcuts) {
-                if (index % 2 == 1) listOf(punchInZoomEffect) else listOf(identityZoomEffect)
+            val videoEffects = if (!extractAudioOnly) {
+                if (autoZoomJumpcuts) {
+                    if (index % 2 == 1) listOf(punchInZoomEffect) else listOf(identityZoomEffect)
+                } else if (baseScale != 1.0f) {
+                    listOf(identityZoomEffect)
+                } else {
+                    emptyList()
+                }
             } else {
                 emptyList()
             }

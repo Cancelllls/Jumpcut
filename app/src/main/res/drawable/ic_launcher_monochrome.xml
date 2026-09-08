@@ -5,82 +5,63 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- 1. Outer Tech Aperture Ring -->
+    <!-- Outer Aperture Ring -->
     <path
-        android:strokeColor="#1A283E"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="1.5"
+        android:strokeAlpha="0.35"
         android:pathData="M54,54m-35,0a35,35 0 1,0 70,0a35,35 0 1,0 -70,0" />
 
-    <!-- Luminous Cyber Cyan Accent Arc (Top) -->
+    <!-- Accent Arcs -->
     <path
-        android:strokeColor="#00E5FF"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="3.2"
         android:strokeLineCap="round"
         android:pathData="M26,38A35,35 0 0,1 54,19" />
 
-    <!-- Champagne Gold Accent Arc (Bottom-Right) -->
     <path
-        android:strokeColor="#E5C158"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="3.2"
         android:strokeLineCap="round"
         android:pathData="M82,69A35,35 0 0,1 54,89" />
 
-    <!-- Cobalt Sapphire Accent Arc (Bottom-Left) -->
+    <!-- Upper JumpCut Shear Blade -->
     <path
-        android:strokeColor="#2563EB"
-        android:strokeWidth="3.2"
-        android:strokeLineCap="round"
-        android:pathData="M26,70A35,35 0 0,1 19,54" />
-
-    <!-- 2. Inner Elevated Studio Disc -->
-    <path
-        android:fillColor="#121A2B"
-        android:strokeColor="#1E2F4A"
-        android:strokeWidth="1.5"
-        android:pathData="M54,54m-27,0a27,27 0 1,0 54,0a27,27 0 1,0 -54,0" />
-
-    <!-- 3. Upper JumpCut Shear Blade (Cyber Cyan) -->
-    <path
-        android:fillColor="#00E5FF"
+        android:fillColor="#FFFFFF"
         android:pathData="M33,39 L54,50 L75,39 L79,43 L54,55 L29,43 Z" />
 
-    <!-- 4. Lower JumpCut Shear Blade (Cobalt Sapphire) -->
+    <!-- Lower JumpCut Shear Blade -->
     <path
-        android:fillColor="#2563EB"
+        android:fillColor="#FFFFFF"
         android:pathData="M33,69 L54,58 L75,69 L79,65 L54,53 L29,65 Z" />
 
-    <!-- 5. Dynamic 5-Bar Voice Activity Equalizer (Acoustic Centerpiece) -->
-    <!-- Bar 1 (Left Vocal Flank - Cyber Cyan) -->
+    <!-- 5-Bar Voice Activity Equalizer -->
     <path
-        android:strokeColor="#00E5FF"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="3.6"
         android:strokeLineCap="round"
         android:pathData="M39.5,49 L39.5,59" />
 
-    <!-- Bar 2 (Mid-Left Vocal Core - Cyber Cyan) -->
     <path
-        android:strokeColor="#00E5FF"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="3.6"
         android:strokeLineCap="round"
         android:pathData="M46.5,43 L46.5,65" />
 
-    <!-- Bar 3 (Vocal Formant Peak - Aya Champagne Gold) -->
     <path
-        android:strokeColor="#E5C158"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="3.8"
         android:strokeLineCap="round"
         android:pathData="M54.0,36 L54.0,72" />
 
-    <!-- Bar 4 (Mid-Right Vocal Core - Cyber Cyan) -->
     <path
-        android:strokeColor="#00E5FF"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="3.6"
         android:strokeLineCap="round"
         android:pathData="M61.5,43 L61.5,65" />
 
-    <!-- Bar 5 (Right Vocal Flank - Cyber Cyan) -->
     <path
-        android:strokeColor="#00E5FF"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="3.6"
         android:strokeLineCap="round"
         android:pathData="M68.5,49 L68.5,59" />

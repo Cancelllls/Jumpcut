@@ -82,6 +82,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         refreshCacheSize()
         UsageQuotaManager.refreshQuota(context, _isProUser.value)
         UsageQuotaManager.syncOnlineTimeAsync(context, _isProUser.value)
+        viewModelScope.launch {
+            StorageManager.autoPruneOldCache(context)
+            refreshCacheSize()
+        }
     }
 
     fun refreshCacheSize() {
@@ -101,6 +105,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteProject(projectId: String) {
         viewModelScope.launch {
             projectRepository.deleteProject(projectId)
+            refreshCacheSize()
+        }
+    }
+
+    fun clearAllProjects() {
+        viewModelScope.launch {
+            projectRepository.clearAll()
             refreshCacheSize()
         }
     }
@@ -311,6 +322,50 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _processingState.value = updatedReady
     }
 
+    fun toggleAllSilences(cutAll: Boolean) {
+        val ready = _processingState.value as? ProcessingState.Ready ?: return
+        val updated = ready.segments.map { seg ->
+            if (seg.isSilence) {
+                // If cutAll = true -> isExcluded = false (excluded from output -> cut)
+                // If cutAll = false -> isExcluded = true (included in output -> kept)
+                seg.copy(isExcluded = !cutAll)
+            } else seg
+        }
+        val newCutDuration = updated.filter { it.shouldKeep }.sumOf { it.durationMs }
+        val updatedReady = ready.copy(
+            segments = updated,
+            cutDurationMs = newCutDuration
+        )
+        lastReadyState = updatedReady
+        _processingState.value = updatedReady
+    }
+
+    fun resetAllSegments() {
+        val analysis = _audioAnalysis.value
+        if (analysis != null) {
+            applySilenceDetection(analysis, _cutSettings.value)
+        } else {
+            val ready = _processingState.value as? ProcessingState.Ready ?: return
+            val updated = ready.segments.map { it.copy(isExcluded = false) }
+            val newCutDuration = updated.filter { it.shouldKeep }.sumOf { it.durationMs }
+            val updatedReady = ready.copy(
+                segments = updated,
+                cutDurationMs = newCutDuration
+            )
+            lastReadyState = updatedReady
+            _processingState.value = updatedReady
+        }
+    }
+
+    fun reopenProjectInEditor(project: SavedProject) {
+        val file = File(project.filePath)
+        if (!file.exists()) {
+            _processingState.value = ProcessingState.Error("Project media file no longer exists on disk: ${file.name}")
+            return
+        }
+        selectMedia(Uri.fromFile(file))
+    }
+
     fun updateExportConfig(config: ExportConfig) {
         _exportConfig.value = config
     }
@@ -368,7 +423,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
                 val isAudioOnly = config.extractAudioOnly || !media.isVideo
-                val extension = if (isAudioOnly) "m4a" else "mp4"
+                val extension = if (isAudioOnly) config.audioFormat else "mp4"
                 val outputDir = File(context.filesDir, "exports").apply { mkdirs() }
                 val outputFile = File(outputDir, "JumpCut_${media.name.substringBeforeLast(".")}_$timestamp.$extension")
 
@@ -383,7 +438,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     microCrossfade = config.microCrossfade,
                     studioAudioLeveling = config.studioAudioLeveling,
                     roomToneSmoothing = config.roomToneSmoothing,
-                    ambientNoiseFloorDb = state.estimatedNoiseFloorDb
+                    ambientNoiseFloorDb = state.estimatedNoiseFloorDb,
+                    videoResolution = config.videoResolution
                 ).collect { progress ->
                     when (progress) {
                         is SplicerProgress.Progress -> {

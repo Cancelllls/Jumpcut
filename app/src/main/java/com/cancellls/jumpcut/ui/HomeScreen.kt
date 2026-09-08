@@ -56,6 +56,8 @@ fun HomeScreen(
     onDeleteCustomPreset: ((String) -> Unit)? = null,
     onExportProjectEdl: ((SavedProject, Boolean) -> Unit)? = null,
     onDeleteProject: (String) -> Unit,
+    onClearAllProjects: (() -> Unit)? = null,
+    onReopenProject: ((SavedProject) -> Unit)? = null,
     onClearCache: () -> Unit,
     onOpenPro: () -> Unit,
     onReplayIntro: () -> Unit,
@@ -72,80 +74,51 @@ fun HomeScreen(
         bottomBar = {
             Column {
                 BannerAdComposable(isProUser = isProUser)
-                NavigationBar(
-                    containerColor = SurfaceDark,
-                    contentColor = TextPrimary,
-                    tonalElevation = 8.dp
+
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(62.dp)
+                        .border(
+                            width = 0.5.dp,
+                            brush = Brush.verticalGradient(listOf(CardBorderSubtle, Color.Transparent)),
+                            shape = RoundedCornerShape(0.dp)
+                        ),
+                    color = SurfaceDark
                 ) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Default.ContentCut,
-                            contentDescription = "Cutter"
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Studio Tab
+                        StudioNavTab(
+                            title = "Studio",
+                            icon = Icons.Default.ContentCut,
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 }
                         )
-                    },
-                    label = { Text("Studio", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = PrimaryCyan,
-                        selectedTextColor = PrimaryCyan,
-                        indicatorColor = CardDark,
-                        unselectedIconColor = TextSecondary,
-                        unselectedTextColor = TextSecondary
-                    )
-                )
 
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = {
-                        BadgedBox(
-                            badge = {
-                                if (savedProjects.isNotEmpty()) {
-                                    Badge(containerColor = PrimaryCyan) {
-                                        Text("${savedProjects.size}", color = BgDark, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.VideoLibrary,
-                                contentDescription = "Projects"
-                            )
-                        }
-                    },
-                    label = { Text("Projects", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = PrimaryCyan,
-                        selectedTextColor = PrimaryCyan,
-                        indicatorColor = CardDark,
-                        unselectedIconColor = TextSecondary,
-                        unselectedTextColor = TextSecondary
-                    )
-                )
-
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings"
+                        // Projects Tab
+                        StudioNavTab(
+                            title = "Projects",
+                            icon = Icons.Default.VideoLibrary,
+                            selected = selectedTab == 1,
+                            badgeCount = savedProjects.size,
+                            onClick = { selectedTab = 1 }
                         )
-                    },
-                    label = { Text("Settings", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = PrimaryCyan,
-                        selectedTextColor = PrimaryCyan,
-                        indicatorColor = CardDark,
-                        unselectedIconColor = TextSecondary,
-                        unselectedTextColor = TextSecondary
-                    )
-                )
+
+                        // Settings Tab
+                        StudioNavTab(
+                            title = "Settings",
+                            icon = Icons.Default.Settings,
+                            selected = selectedTab == 2,
+                            onClick = { selectedTab = 2 }
+                        )
+                    }
+                }
             }
         }
-    }
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -166,6 +139,7 @@ fun HomeScreen(
                     onViewAllProjects = { selectedTab = 1 },
                     onDeleteProject = onDeleteProject,
                     onExportEdl = onExportProjectEdl,
+                    onReopenProject = onReopenProject,
                     onOpenPro = onOpenPro,
                     isProUser = isProUser
                 )
@@ -173,7 +147,9 @@ fun HomeScreen(
                     projects = savedProjects,
                     onDeleteProject = onDeleteProject,
                     onStartNewProject = { selectedTab = 0 },
-                    onExportEdl = onExportProjectEdl
+                    onExportEdl = onExportProjectEdl,
+                    onReopenProject = onReopenProject,
+                    onClearAllProjects = onClearAllProjects
                 )
                 2 -> SettingsScreen(
                     cacheSize = cacheSize,
@@ -201,6 +177,7 @@ fun CutterStudioContent(
     onViewAllProjects: () -> Unit,
     onDeleteProject: (String) -> Unit,
     onExportEdl: ((SavedProject, Boolean) -> Unit)? = null,
+    onReopenProject: ((SavedProject) -> Unit)? = null,
     onOpenPro: () -> Unit,
     isProUser: Boolean
 ) {
@@ -240,18 +217,15 @@ fun CutterStudioContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
-                        .clip(RoundedCornerShape(11.dp))
-                        .background(
-                            Brush.linearGradient(listOf(PrimaryCyan, ElectricBlue))
-                        ),
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CardDarkElevated)
+                        .border(1.dp, CardBorder, RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.ContentCut,
-                        contentDescription = "Logo",
-                        tint = BgDark,
-                        modifier = Modifier.size(20.dp)
+                    JumpCutAnimatedLogo(
+                        pulse = 0.5f,
+                        modifier = Modifier.size(34.dp)
                     )
                 }
                 Spacer(modifier = Modifier.width(10.dp))
@@ -259,11 +233,12 @@ fun CutterStudioContent(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "JumpCut",
-                            fontSize = 18.sp,
+                            fontSize = 19.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = TextPrimary
+                            color = TextPrimary,
+                            letterSpacing = 0.4.sp
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(7.dp))
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
@@ -271,19 +246,30 @@ fun CutterStudioContent(
                                 .border(0.5.dp, PrimaryCyan.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            Text(
-                                text = "STUDIO",
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = PrimaryCyan,
-                                letterSpacing = 0.8.sp
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(4.dp)
+                                        .clip(CircleShape)
+                                        .background(PrimaryCyan)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "STUDIO",
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = PrimaryCyan,
+                                    letterSpacing = 1.sp
+                                )
+                            }
                         }
                     }
                     Text(
-                        text = "Lossless Silence Cutter",
-                        fontSize = 11.sp,
-                        color = TextSecondary
+                        text = "LOSSLESS EDITING ENGINE",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextMuted,
+                        letterSpacing = 0.8.sp
                     )
                 }
             }
@@ -293,14 +279,14 @@ fun CutterStudioContent(
                 Box(
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(GoldPro)
+                        .background(StudioGoldGradient)
                         .clickable { onOpenPro() }
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Star, contentDescription = "Pro", tint = BgDark, modifier = Modifier.size(13.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("PRO ACTIVE", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = BgDark)
+                        Text("PRO ACTIVE", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = BgDark, letterSpacing = 0.5.sp)
                     }
                 }
             } else {
@@ -308,14 +294,14 @@ fun CutterStudioContent(
                 Box(
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(if (hasRemaining) CardDark else SilenceRed.copy(alpha = 0.18f))
+                        .background(if (hasRemaining) CardDarkElevated else SilenceRed.copy(alpha = 0.18f))
                         .border(
                             1.dp,
-                            if (hasRemaining) CardBorder else SilenceRed.copy(alpha = 0.5f),
+                            if (hasRemaining) StudioCardBorderBrush else Brush.horizontalGradient(listOf(SilenceRed.copy(alpha = 0.5f), SilenceRed.copy(alpha = 0.5f))),
                             CircleShape
                         )
                         .clickable { onOpenPro() }
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -324,12 +310,13 @@ fun CutterStudioContent(
                             tint = if (hasRemaining) PrimaryCyan else SilenceRed,
                             modifier = Modifier.size(13.dp)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(5.dp))
                         Text(
-                            text = if (hasRemaining) "$remainingExports free left" else "0 left • Upgrade",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (hasRemaining) TextPrimary else SilenceRed
+                            text = if (hasRemaining) "$remainingExports OF 2 FREE" else "0 LEFT • UPGRADE",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (hasRemaining) TextPrimary else SilenceRed,
+                            letterSpacing = 0.6.sp
                         )
                     }
                 }
@@ -347,111 +334,208 @@ fun CutterStudioContent(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // Unified Master Creation Hero Card
+        // Master Studio Ingest Bay Card
         Card(
-            shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-            border = androidx.compose.foundation.BorderStroke(
-                1.dp,
-                Brush.verticalGradient(
-                    listOf(PrimaryCyan.copy(alpha = 0.5f), ElectricBlue.copy(alpha = 0.2f), CardBorder)
-                )
-            ),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            border = androidx.compose.foundation.BorderStroke(1.dp, StudioCardBorderBrush),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .background(StudioCardBrush)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(60.dp)
-                        .clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(PrimaryCyan, ElectricBlue)))
-                        .clickable {
-                            singleMediaPicker.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
-                            )
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "New Project",
-                        tint = BgDark,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Text(
-                    text = "New Project",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = TextPrimary
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = "Auto-detect and cut pauses • Native 4K 60FPS",
-                    fontSize = 12.sp,
-                    color = TextSecondary,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // Primary full-width Gallery CTA
-                Button(
-                    onClick = {
-                        singleMediaPicker.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
-                        )
-                    },
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(46.dp)
+                        .padding(18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = BgDark, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Select from Gallery", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = BgDark)
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Secondary actions: All Files & Web Stream
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { anyFilePicker.launch("*/*") },
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.weight(1f).height(40.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+                    // Studio Console Header Tag
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.FolderOpen, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("All Files", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(PrimaryCyan)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "STUDIO INGEST BAY",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextMuted,
+                                letterSpacing = 1.2.sp
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(PrimaryCyan.copy(alpha = 0.12f))
+                                .border(0.5.dp, PrimaryCyan.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "4K 60FPS LOSSLESS",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = PrimaryCyan,
+                                letterSpacing = 0.8.sp
+                            )
+                        }
                     }
 
-                    OutlinedButton(
-                        onClick = { showUrlDialog = true },
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.weight(1f).height(40.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Central Ingest Chamber (Clickable Dropzone)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(SurfaceDark.copy(alpha = 0.7f))
+                            .border(1.dp, Brush.verticalGradient(listOf(PrimaryCyan.copy(alpha = 0.35f), CardBorderSubtle)), RoundedCornerShape(16.dp))
+                            .clickable {
+                                singleMediaPicker.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                                )
+                            }
+                            .padding(vertical = 22.dp, horizontal = 16.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Link, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Web Link", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            // Acoustic Aperture Icon with glowing aura
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(60.dp)
+                                    .clip(CircleShape)
+                                    .background(StudioTealSubtleBrush)
+                                    .border(1.5.dp, PrimaryCyan.copy(alpha = 0.5f), CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudUpload,
+                                    contentDescription = "Upload Media",
+                                    tint = PrimaryCyan,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Text(
+                                text = "Drop or Select Video to Cut",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = TextPrimary
+                            )
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Text(
+                                text = "Auto-detect & cut dead pauses • Lossless passthrough",
+                                fontSize = 11.sp,
+                                color = TextSecondary,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Codec compatibility badges
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                listOf("MP4", "MOV", "MKV", "MP3", "WAV").forEach { format ->
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(CardDarkElevated)
+                                            .border(0.5.dp, CardBorderSubtle, RoundedCornerShape(4.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = format,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextMuted,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // 3-Way Hardware Source Rack
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Primary: Gallery
+                        Box(
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(StudioTealButtonBrush)
+                                .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                                .clickable {
+                                    singleMediaPicker.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = BgDark, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Gallery", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = BgDark)
+                            }
+                        }
+
+                        // Secondary 1: All Files
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(CardDarkElevated)
+                                .border(1.dp, StudioCardBorderBrush, RoundedCornerShape(12.dp))
+                                .clickable { anyFilePicker.launch("*/*") },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.FolderOpen, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text("Files", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            }
+                        }
+
+                        // Secondary 2: Web Link
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(CardDarkElevated)
+                                .border(1.dp, StudioCardBorderBrush, RoundedCornerShape(12.dp))
+                                .clickable { showUrlDialog = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Link, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text("URL", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            }
+                        }
                     }
                 }
             }
@@ -499,6 +583,7 @@ fun CutterStudioContent(
                     RecentProjectItem(
                         project = proj,
                         onPlay = { playingProject = proj },
+                        onEdit = onReopenProject?.let { cb -> { cb(proj) } },
                         onShare = {
                             MediaSaver.shareMedia(
                                 context = context,
@@ -669,20 +754,23 @@ fun CutterStudioContent(
 fun RecentProjectItem(
     project: SavedProject,
     onPlay: () -> Unit,
+    onEdit: (() -> Unit)? = null,
     onShare: () -> Unit
 ) {
     Card(
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+        border = androidx.compose.foundation.BorderStroke(1.dp, StudioCardBorderBrush),
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
             .clickable { onPlay() }
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(10.dp),
+                .background(StudioCardBrush)
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             val thumbnail = remember(project.thumbnailPath) {
@@ -734,47 +822,86 @@ fun RecentProjectItem(
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
+                val displayTitle = remember(project.title) {
+                    project.title
+                        .replace(Regex("^JumpCut_"), "")
+                        .replace(Regex("_\\d{10,}$"), "")
+                        .ifBlank { project.title }
+                }
                 Text(
-                    text = project.title,
+                    text = displayTitle,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(RoundedCornerShape(6.dp))
                             .background(GreenSuccess.copy(alpha = 0.15f))
-                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                            .border(0.5.dp, GreenSuccess.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
-                        Text(
-                            text = "${project.savedPercent}% trimmed",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GreenSuccess
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.ContentCut, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(10.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "${project.savedPercent}% Trimmed",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = GreenSuccess
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = project.formattedSize,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = TextMuted
                     )
                 }
             }
 
+            if (onEdit != null) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(CardDarkElevated)
+                        .border(1.dp, CardBorderSubtle, RoundedCornerShape(8.dp))
+                        .clickable { onEdit() }
+                        .padding(horizontal = 9.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = "Edit in Studio",
+                            tint = PrimaryCyan,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Edit",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+
             IconButton(
                 onClick = onShare,
-                modifier = Modifier.size(36.dp)
+                modifier = Modifier.size(34.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Share,
                     contentDescription = "Share",
                     tint = TextSecondary,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(17.dp)
                 )
             }
         }
@@ -791,80 +918,109 @@ fun StudioImpactBar(savedProjects: List<SavedProject>) {
     }
 
     Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = androidx.compose.foundation.BorderStroke(1.dp, StudioCardBorderBrush),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .background(StudioCardBrush)
+                .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Timer, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(13.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Telemetry Tile 1: Time Saved
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text(
                         text = if (totalSavedMs > 0) formatTimeSavedShort(totalSavedMs) else "0s",
-                        fontSize = 13.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = TextPrimary
+                        color = TextPrimary,
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "TIME SAVED",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextMuted,
+                        letterSpacing = 1.sp
                     )
                 }
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(text = "Time Saved", fontSize = 10.sp, color = TextSecondary)
-            }
 
-            Box(
-                modifier = Modifier
-                    .width(1.dp)
-                    .height(26.dp)
-                    .background(CardBorder)
-            )
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(28.dp)
+                        .background(CardBorder)
+                )
 
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.ContentCut, contentDescription = null, tint = GreenSuccess, modifier = Modifier.size(13.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
+                // Telemetry Tile 2: Pauses Cut
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text(
                         text = if (cutsCount > 0) "$cutsCount+" else "0",
-                        fontSize = 13.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = TextPrimary
+                        color = TextPrimary,
+                        letterSpacing = 0.5.sp
                     )
-                }
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(text = "Pauses Cut", fontSize = 10.sp, color = TextSecondary)
-            }
-
-            Box(
-                modifier = Modifier
-                    .width(1.dp)
-                    .height(26.dp)
-                    .background(CardBorder)
-            )
-
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(GreenSuccess)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Lossless",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = GreenSuccess
+                        text = "PAUSES CUT",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextMuted,
+                        letterSpacing = 1.sp
                     )
                 }
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(text = "Native 4K 60FPS", fontSize = 10.sp, color = TextSecondary)
+
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(28.dp)
+                        .background(CardBorder)
+                )
+
+                // Telemetry Tile 3: Engine Pipeline
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(GreenSuccess)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "4K 60FPS",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = GreenSuccess
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "LOSSLESS ENGINE",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextMuted,
+                        letterSpacing = 1.sp
+                    )
+                }
             }
         }
     }
@@ -880,3 +1036,66 @@ fun formatTimeSavedShort(ms: Long): String {
         else -> "${totalSeconds}s"
     }
 }
+
+@Composable
+fun StudioNavTab(
+    title: String,
+    icon: ImageVector,
+    selected: Boolean,
+    badgeCount: Int = 0,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 24.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        BadgedBox(
+            badge = {
+                if (badgeCount > 0) {
+                    Badge(
+                        containerColor = PrimaryCyan,
+                        contentColor = BgDark
+                    ) {
+                        Text(
+                            text = "$badgeCount",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
+            }
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = if (selected) PrimaryCyan else TextMuted,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(3.dp))
+
+        Text(
+            text = title,
+            fontSize = 10.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) PrimaryCyan else TextMuted,
+            letterSpacing = 0.3.sp
+        )
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        // Active micro indicator
+        Box(
+            modifier = Modifier
+                .size(width = 12.dp, height = 2.dp)
+                .clip(RoundedCornerShape(1.dp))
+                .background(if (selected) PrimaryCyan else Color.Transparent)
+        )
+    }
+}
+

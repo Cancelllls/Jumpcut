@@ -8,12 +8,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -21,16 +26,14 @@ import androidx.core.view.WindowCompat
 import com.cancellls.jumpcut.ads.AdManager
 import com.cancellls.jumpcut.billing.BillingManager
 import com.cancellls.jumpcut.model.ProcessingState
-import com.cancellls.jumpcut.theme.BgDark
-import com.cancellls.jumpcut.theme.JumpCutTheme
-import com.cancellls.jumpcut.theme.PrimaryCyan
-import com.cancellls.jumpcut.theme.TextPrimary
-import com.cancellls.jumpcut.theme.TextSecondary
+import com.cancellls.jumpcut.theme.*
 import com.cancellls.jumpcut.ui.EditorScreen
 import com.cancellls.jumpcut.ui.ExportScreen
 import com.cancellls.jumpcut.ui.HomeScreen
+import com.cancellls.jumpcut.ui.JumpCutAnimatedLogo
 import com.cancellls.jumpcut.ui.OnboardingScreen
 import com.cancellls.jumpcut.ui.ProPaywallSheet
+import com.cancellls.jumpcut.ui.SplashScreen
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
@@ -53,6 +56,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             JumpCutTheme {
                 val prefs = remember { getSharedPreferences("jumpcut_prefs", Context.MODE_PRIVATE) }
+                var showSplash by remember { mutableStateOf(true) }
                 var hasSeenIntro by remember { mutableStateOf(prefs.getBoolean("has_seen_intro", false)) }
                 var showIntroModal by remember { mutableStateOf(false) }
 
@@ -88,7 +92,11 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
                     color = BgDark
                 ) {
-                    if (!hasSeenIntro || showIntroModal) {
+                    if (showSplash) {
+                        com.cancellls.jumpcut.ui.SplashScreen(
+                            onSplashFinished = { showSplash = false }
+                        )
+                    } else if (!hasSeenIntro || showIntroModal) {
                         OnboardingScreen(
                             onFinishOnboarding = {
                                 prefs.edit().putBoolean("has_seen_intro", true).apply()
@@ -112,6 +120,8 @@ class MainActivity : ComponentActivity() {
                                     onDeleteCustomPreset = { id -> viewModel.deleteCustomPreset(id) },
                                     onExportProjectEdl = { project, asXml -> viewModel.exportProjectEdl(this@MainActivity, project, asXml) },
                                     onDeleteProject = { id -> viewModel.deleteProject(id) },
+                                    onClearAllProjects = { viewModel.clearAllProjects() },
+                                    onReopenProject = { project -> viewModel.reopenProjectInEditor(project) },
                                     onClearCache = { viewModel.clearCache() },
                                     onOpenPro = {
                                         proPaywallReason = null
@@ -127,29 +137,109 @@ class MainActivity : ComponentActivity() {
                                 viewModel.cancelAnalysis()
                             }
 
+                            val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "AnalysisPulse")
+                            val pulse by infiniteTransition.animateFloat(
+                                initialValue = 0f,
+                                targetValue = 1f,
+                                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                                    animation = androidx.compose.animation.core.tween(1800, easing = androidx.compose.animation.core.LinearEasing),
+                                    repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                                ),
+                                label = "pulseProgress"
+                            )
+
                             Box(
                                 modifier = Modifier.fillMaxSize().background(BgDark),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    CircularProgressIndicator(
-                                        color = PrimaryCyan,
-                                        modifier = Modifier.size(54.dp),
-                                        strokeWidth = 5.dp
-                                    )
-                                    Spacer(modifier = Modifier.height(20.dp))
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center,
+                                    modifier = Modifier.padding(32.dp)
+                                ) {
+                                    // Glowing animated JumpCut logo
+                                    Box(
+                                        modifier = Modifier.size(160.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        com.cancellls.jumpcut.ui.JumpCutAnimatedLogo(
+                                            pulse = pulse,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(28.dp))
+
                                     Text(
                                         text = state.status,
-                                        fontSize = 16.sp,
+                                        fontSize = 17.sp,
                                         fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.5.sp,
                                         color = TextPrimary
                                     )
-                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    Spacer(modifier = Modifier.height(14.dp))
+
+                                    // Studio gradient progress track
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth(0.7f)
+                                            .height(6.dp)
+                                            .background(
+                                                color = com.cancellls.jumpcut.theme.CardDarkElevated,
+                                                shape = androidx.compose.foundation.shape.RoundedCornerShape(3.dp)
+                                            )
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth(state.progress.coerceIn(0.02f, 1f))
+                                                .fillMaxHeight()
+                                                .background(
+                                                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                        listOf(PrimaryCyan, com.cancellls.jumpcut.theme.ElectricBlue)
+                                                    ),
+                                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(3.dp)
+                                                )
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
                                     Text(
                                         text = "${(state.progress * 100).toInt()}%",
-                                        fontSize = 13.sp,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
                                         color = TextSecondary
                                     )
+
+                                    Spacer(modifier = Modifier.height(28.dp))
+
+                                    OutlinedButton(
+                                        onClick = { viewModel.cancelAnalysis() },
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = TextSecondary
+                                        ),
+                                        border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
+                                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                listOf(com.cancellls.jumpcut.theme.CardBorder, com.cancellls.jumpcut.theme.CardBorder)
+                                            )
+                                        ),
+                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = androidx.compose.material.icons.Icons.Default.Close,
+                                            contentDescription = "Cancel",
+                                            modifier = Modifier.size(16.dp),
+                                            tint = TextSecondary
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Cancel",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -182,6 +272,8 @@ class MainActivity : ComponentActivity() {
                                     onSettingsChanged = { viewModel.updateSettings(it) },
                                     onToggleSkipSilence = { viewModel.toggleSkipSilencePreview(it) },
                                     onToggleSegment = { segId -> viewModel.toggleSegment(segId) },
+                                    onToggleAllSilences = { cutAll -> viewModel.toggleAllSilences(cutAll) },
+                                    onResetAllSegments = { viewModel.resetAllSegments() },
                                     onExportConfirm = { config ->
                                         viewModel.updateExportConfig(config)
                                         viewModel.exportSplicedMedia(config)
