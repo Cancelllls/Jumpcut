@@ -321,7 +321,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             originalDurationMs = result.originalDurationMs,
             cutDurationMs = result.cutDurationMs,
             segments = result.segments,
-            waveformAmplitudes = analysis.waveformNormalized.toList()
+            waveformAmplitudes = analysis.waveformNormalized.toList(),
+            estimatedNoiseFloorDb = analysis.estimatedNoiseFloorDb
         )
         lastReadyState = ready
         _processingState.value = ready

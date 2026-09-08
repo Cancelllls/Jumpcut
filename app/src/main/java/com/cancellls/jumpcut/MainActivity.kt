@@ -169,6 +169,7 @@ class MainActivity : ComponentActivity() {
                                     cutDurationMs = state.cutDurationMs,
                                     savedPercent = state.savedPercent,
                                     cutSettings = cutSettings,
+                                    estimatedNoiseFloorDb = state.estimatedNoiseFloorDb,
                                     skipSilencePreview = skipSilencePreview,
                                     exportConfig = exportConfig,
                                     creatorPresets = creatorPresets,

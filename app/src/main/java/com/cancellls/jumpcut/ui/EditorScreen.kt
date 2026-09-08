@@ -58,6 +58,7 @@ fun EditorScreen(
     cutDurationMs: Long,
     savedPercent: Int,
     cutSettings: CutSettings,
+    estimatedNoiseFloorDb: Float = -36f,
     skipSilencePreview: Boolean,
     exportConfig: ExportConfig,
     creatorPresets: List<CreatorPreset> = emptyList(),
@@ -544,7 +545,7 @@ fun EditorScreen(
                         border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
-                            // Live Impact Readout Banner
+                            // Live Impact Readout Banner with Voice Discriminator stats
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -557,17 +558,25 @@ fun EditorScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = "LIVE SPEECH FLOOR IMPACT",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = TextMuted,
-                                        letterSpacing = 0.5.sp
-                                    )
+                                    Column {
+                                        Text(
+                                            text = "VOICE DISCRIMINATOR",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = TextMuted,
+                                            letterSpacing = 0.5.sp
+                                        )
+                                        Text(
+                                            text = "Room Noise Floor: ${estimatedNoiseFloorDb.toInt()} dB",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (estimatedNoiseFloorDb > -35f) GoldPro else PrimaryCyan
+                                        )
+                                    }
                                     Text(
                                         text = "${silences.size} cuts • -${formatTime((originalDurationMs - cutDurationMs).coerceAtLeast(0))}",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.ExtraBold,
                                         color = GreenSuccess
                                     )
                                 }
@@ -575,7 +584,39 @@ fun EditorScreen(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Slider 1: Silence Sensitivity (dB)
+                            // Slider 1: Voice vs Background Noise Armor
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.GraphicEq, contentDescription = null, tint = GoldPro, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(text = "Voice vs Noise Armor", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                    }
+                                    Text(text = "Filters out fans, A/C, street rumble & room hum", fontSize = 10.sp, color = TextSecondary)
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(GoldPro.copy(alpha = 0.15f))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(text = "${(cutSettings.voiceNoiseRejection * 100).toInt()}%", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = GoldPro)
+                                }
+                            }
+                            Slider(
+                                value = cutSettings.voiceNoiseRejection,
+                                onValueChange = { onSettingsChanged(cutSettings.copy(voiceNoiseRejection = it)) },
+                                valueRange = 0.15f..0.95f,
+                                colors = SliderDefaults.colors(thumbColor = GoldPro, activeTrackColor = GoldPro)
+                            )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Slider 2: Silence Sensitivity (dB)
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -583,7 +624,7 @@ fun EditorScreen(
                             ) {
                                 Column {
                                     Text(text = "Silence Sensitivity", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                                    Text(text = "Noise floor cutoff threshold", fontSize = 10.sp, color = TextSecondary)
+                                    Text(text = "Base cutoff threshold", fontSize = 10.sp, color = TextSecondary)
                                 }
                                 Box(
                                     modifier = Modifier
@@ -603,7 +644,7 @@ fun EditorScreen(
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // Slider 2: Min Silence Duration
+                            // Slider 3: Min Silence Duration
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -631,7 +672,7 @@ fun EditorScreen(
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // Slider 3: Speech Padding Buffer
+                            // Slider 4: Speech Padding Buffer
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -656,6 +697,43 @@ fun EditorScreen(
                                 valueRange = 15f..120f,
                                 colors = SliderDefaults.colors(thumbColor = GreenSuccess, activeTrackColor = GreenSuccess)
                             )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Auto-Adapt Room Noise Floor Toggle
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(CardDark)
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Auto-Adapt to Room Acoustics",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = if (cutSettings.autoNoiseFloor) "Dynamically tracks ambient floor (${estimatedNoiseFloorDb.toInt()} dB)" else "Fixed manual threshold mode",
+                                        fontSize = 9.sp,
+                                        color = TextSecondary
+                                    )
+                                }
+                                Switch(
+                                    checked = cutSettings.autoNoiseFloor,
+                                    onCheckedChange = { onSettingsChanged(cutSettings.copy(autoNoiseFloor = it)) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = PrimaryCyan,
+                                        checkedTrackColor = PrimaryCyan.copy(alpha = 0.35f),
+                                        uncheckedThumbColor = TextMuted,
+                                        uncheckedTrackColor = SurfaceDark
+                                    )
+                                )
+                            }
                         }
                     }
                 }

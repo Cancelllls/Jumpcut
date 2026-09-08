@@ -18,25 +18,25 @@ class PresetRepository(context: Context) {
         CreatorPreset(
             id = "preset_shorts",
             name = "Shorts / TikTok",
-            settings = CutSettings(silenceThresholdDb = -30f, minSilenceDurationMs = 250L, paddingMs = 40L),
+            settings = CutSettings(silenceThresholdDb = -30f, minSilenceDurationMs = 250L, paddingMs = 40L, voiceNoiseRejection = 0.75f),
             isBuiltIn = true
         ),
         CreatorPreset(
             id = "preset_podcast",
             name = "Podcast Studio",
-            settings = CutSettings(silenceThresholdDb = -34f, minSilenceDurationMs = 450L, paddingMs = 70L),
+            settings = CutSettings(silenceThresholdDb = -34f, minSilenceDurationMs = 450L, paddingMs = 70L, voiceNoiseRejection = 0.60f),
             isBuiltIn = true
         ),
         CreatorPreset(
             id = "preset_lecture",
             name = "Fast Lecture",
-            settings = CutSettings(silenceThresholdDb = -28f, minSilenceDurationMs = 200L, paddingMs = 30L),
+            settings = CutSettings(silenceThresholdDb = -28f, minSilenceDurationMs = 200L, paddingMs = 30L, voiceNoiseRejection = 0.70f),
             isBuiltIn = true
         ),
         CreatorPreset(
             id = "preset_vlog",
             name = "Vlog Natural",
-            settings = CutSettings(silenceThresholdDb = -32f, minSilenceDurationMs = 350L, paddingMs = 50L),
+            settings = CutSettings(silenceThresholdDb = -32f, minSilenceDurationMs = 350L, paddingMs = 50L, voiceNoiseRejection = 0.50f),
             isBuiltIn = true
         )
     )
@@ -60,6 +60,8 @@ class PresetRepository(context: Context) {
                 val padding = obj.getLong("padding")
                 val removeNoise = obj.optBoolean("removeNoise", true)
                 val volumeBoost = obj.optDouble("volumeBoost", 1.0).toFloat()
+                val voiceNoiseRejection = obj.optDouble("voiceNoiseRejection", 0.65).toFloat()
+                val autoNoiseFloor = obj.optBoolean("autoNoiseFloor", true)
 
                 result.add(
                     CreatorPreset(
@@ -70,7 +72,9 @@ class PresetRepository(context: Context) {
                             minSilenceDurationMs = minDuration,
                             paddingMs = padding,
                             removeNoise = removeNoise,
-                            volumeBoost = volumeBoost
+                            volumeBoost = volumeBoost,
+                            voiceNoiseRejection = voiceNoiseRejection,
+                            autoNoiseFloor = autoNoiseFloor
                         ),
                         isBuiltIn = false
                     )
@@ -111,6 +115,8 @@ class PresetRepository(context: Context) {
             obj.put("padding", p.settings.paddingMs)
             obj.put("removeNoise", p.settings.removeNoise)
             obj.put("volumeBoost", p.settings.volumeBoost.toDouble())
+            obj.put("voiceNoiseRejection", p.settings.voiceNoiseRejection.toDouble())
+            obj.put("autoNoiseFloor", p.settings.autoNoiseFloor)
             array.put(obj)
         }
         prefs.edit().putString(KEY_CUSTOM_PRESETS, array.toString()).apply()

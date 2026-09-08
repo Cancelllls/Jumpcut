@@ -59,15 +59,15 @@ jobs:
           mkdir -p release_assets
           # Find and copy signed release apk
           if [ -f app/build/outputs/apk/release/app-release.apk ]; then
-            cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-v1.5.1-release.apk
+            cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-v1.5.2-release.apk
             cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-release.apk
           elif [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-v1.5.1-release.apk
+            cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-v1.5.2-release.apk
             cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-release.apk
           fi
           # Copy debug apk
           if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-v1.5.1-debug.apk
+            cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-v1.5.2-debug.apk
             cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-debug.apk
           fi
           echo "Release assets ready:"
@@ -92,30 +92,31 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.5.1' }}
-          name: "JumpCut AI ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.5.1' }}"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.5.2' }}
+          name: "JumpCut AI ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.5.2' }}"
           draft: false
           prerelease: false
           body: |
-            ## 🚀 JumpCut AI v1.5.1 (Media3 Pipeline Fixes, Auto-Zoom Jumpcuts & Android 16 SAF)
+            ## 🚀 JumpCut AI v1.5.2 (Intelligent Voice Discrimination, Room Acoustics Auto-Adapt & Export Stability)
             
-            ### 🎬 What's New in v1.5.1:
-            - **Fixed "Failed to load assets" (Media3 Asset Loader Error)**:
-              - Clamped segment clipping boundaries strictly within total container duration, eliminating EOF crashes caused by word padding armor.
-              - Allocated dedicated per-clip `MicroCrossfadeAudioProcessor` instances to prevent `IllegalStateException: Audio processor is already ended` across sequence boundaries.
-              - Uniform video frame processing for Auto-Zoom Jumpcuts (1.0x identity on even cuts, 1.12x punch-ins on odd cuts) to preserve OpenGL context integrity.
-              - Enabled hardware decoder fallback with detailed root-cause exception reporting.
-            - **Android 16 Scoped Storage & SAF Folder Picker**:
-              - Added direct **Save to Files / Choose Folder** using Storage Access Framework (`ActivityResultContracts.CreateDocument`).
-              - Save directly to Downloads, SD Card, or any custom folder without `WRITE_EXTERNAL_STORAGE` permission.
-              - External video player launcher support directly from the export completion screen.
-            - **Export Bottom Sheet UX Improvements**:
-              - Added `skipPartiallyExpanded` and smooth vertical scrolling.
-              - Fully clickable setting card rows for effortless toggling on mobile touchscreens.
+            ### 🎙️ What's New in v1.5.2:
+            - **Intelligent Voice Activity Detection (VAD)**:
+              - Added 2nd-order Biquad vocal formant bandpass filter (300 Hz – 3400 Hz) rejecting low-frequency rumble (<200 Hz) and high-frequency fan hiss (>4000 Hz).
+              - Short-lag pitch autocorrelation ($F_0 \in [80, 350]\text{ Hz}$) to identify human harmonic periodicity vs flat stationary noise.
+              - Syllabic modulation tracking across local temporal windows ($\pm 150\text{ms}$) to separate dynamic human speech from flat fan/AC drones.
+            - **Room Acoustics Auto-Adapt**:
+              - Dynamic ambient noise floor estimation calculated from the 20th percentile of room baseline during natural pauses.
+              - Added **Voice vs Noise Armor** control slider (15% to 95%) and **Auto-Adapt to Room Acoustics** toggle in Editor.
+            - **Consonant Lookahead & Speech Hangover**:
+              - 120ms lookahead protecting soft word-initial consonants ("s", "t", "p", "f", "k").
+              - 150ms hangover preventing aggressive cutoff of trailing breath releases.
+            - **Export Watchdog & Stability**:
+              - Automated fallback pipeline and watchdog recovery preventing export hangs.
+              - Proper Android predictive back navigation support across all screens.
             
             ### 📱 Download & Install:
-            - **`JumpCut-v1.5.1-release.apk`** / **`JumpCut-release.apk`** — Production Signed Release (Direct APK installer)
-            - **`JumpCut-v1.5.1-debug.apk`** / **`JumpCut-debug.apk`** — Debug Build with extended developer logging
+            - **`JumpCut-v1.5.2-release.apk`** / **`JumpCut-release.apk`** — Production Signed Release (Direct APK installer)
+            - **`JumpCut-v1.5.2-debug.apk`** / **`JumpCut-debug.apk`** — Debug Build with extended developer logging
           files: release_assets/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

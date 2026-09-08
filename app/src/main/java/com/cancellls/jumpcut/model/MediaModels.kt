@@ -57,7 +57,9 @@ data class CutSettings(
     val minSilenceDurationMs: Long = 350L,
     val paddingMs: Long = 50L,
     val removeNoise: Boolean = true,
-    val volumeBoost: Float = 1.0f
+    val volumeBoost: Float = 1.0f,
+    val voiceNoiseRejection: Float = 0.65f,
+    val autoNoiseFloor: Boolean = true
 )
 
 data class CreatorPreset(
@@ -74,7 +76,8 @@ sealed class ProcessingState {
         val originalDurationMs: Long,
         val cutDurationMs: Long,
         val segments: List<CutSegment>,
-        val waveformAmplitudes: List<Float>
+        val waveformAmplitudes: List<Float>,
+        val estimatedNoiseFloorDb: Float = -40f
     ) : ProcessingState() {
         val savedMs: Long get() = (originalDurationMs - cutDurationMs).coerceAtLeast(0)
         val savedPercent: Int get() = if (originalDurationMs > 0) {
