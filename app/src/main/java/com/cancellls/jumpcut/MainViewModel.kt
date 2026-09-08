@@ -439,7 +439,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     studioAudioLeveling = config.studioAudioLeveling,
                     roomToneSmoothing = config.roomToneSmoothing,
                     ambientNoiseFloorDb = state.estimatedNoiseFloorDb,
-                    videoResolution = config.videoResolution
+                    videoResolution = config.videoResolution,
+                    silenceTimeWarp = config.silenceTimeWarp,
+                    silenceSpeedMultiplier = 3.0f,
+                    allSegments = state.segments
                 ).collect { progress ->
                     when (progress) {
                         is SplicerProgress.Progress -> {
@@ -565,6 +568,61 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             file = file,
             mimeType = if (asXml) "application/xml" else "text/plain",
             title = "Share Timeline (${if (asXml) ".XML" else ".EDL"})"
+        )
+        return file
+    }
+
+    fun exportCurrentSubtitles(context: Context, asVtt: Boolean = false): File? {
+        val media = _selectedMedia.value ?: return null
+        val state = _processingState.value as? ProcessingState.Ready ?: return null
+        val keptSegments = state.segments.filter { it.shouldKeep }
+        if (keptSegments.isEmpty()) return null
+
+        val projectName = media.name.substringBeforeLast(".")
+        val file = if (asVtt) {
+            EdlExporter.exportVttToFile(
+                context = context,
+                projectName = projectName,
+                speechSegments = keptSegments
+            )
+        } else {
+            EdlExporter.exportSrtToFile(
+                context = context,
+                projectName = projectName,
+                speechSegments = keptSegments
+            )
+        }
+        MediaSaver.shareDocument(
+            context = context,
+            file = file,
+            mimeType = if (asVtt) "text/vtt" else "application/x-subrip",
+            title = "Share Subtitle Cues (${if (asVtt) ".VTT" else ".SRT"})"
+        )
+        return file
+    }
+
+    fun exportProjectSubtitles(context: Context, project: SavedProject, asVtt: Boolean = false): File? {
+        val segments = project.segmentsJson?.let { EdlExporter.jsonToSegments(it) } ?: emptyList()
+        if (segments.isEmpty()) return null
+
+        val file = if (asVtt) {
+            EdlExporter.exportVttToFile(
+                context = context,
+                projectName = project.title,
+                speechSegments = segments
+            )
+        } else {
+            EdlExporter.exportSrtToFile(
+                context = context,
+                projectName = project.title,
+                speechSegments = segments
+            )
+        }
+        MediaSaver.shareDocument(
+            context = context,
+            file = file,
+            mimeType = if (asVtt) "text/vtt" else "application/x-subrip",
+            title = "Share Subtitle Cues (${if (asVtt) ".VTT" else ".SRT"})"
         )
         return file
     }

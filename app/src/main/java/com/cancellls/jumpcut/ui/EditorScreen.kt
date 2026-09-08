@@ -1,6 +1,7 @@
 package com.cancellls.jumpcut.ui
 
 import androidx.annotation.OptIn
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -73,6 +74,7 @@ fun EditorScreen(
     onExportConfirm: (ExportConfig) -> Unit,
     onSavePreset: ((String, CutSettings) -> Unit)? = null,
     onExportEdl: ((Boolean) -> Unit)? = null,
+    onExportSubtitles: ((Boolean) -> Unit)? = null,
     onBackClick: () -> Unit
 ) {
     val context = LocalContext.current
@@ -95,6 +97,7 @@ fun EditorScreen(
     var currentPositionMs by remember { mutableLongStateOf(0L) }
     var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
     var isComparingRaw by remember { mutableStateOf(false) }
+    var isWarpPreview by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Parameters, 1: Presets, 2: Silence Inspector
     var showExportSheet by remember { mutableStateOf(false) }
     var showSavePresetDialog by remember { mutableStateOf(false) }
@@ -135,8 +138,8 @@ fun EditorScreen(
         exoPlayer.playbackParameters = PlaybackParameters(playbackSpeed)
     }
 
-    // Playback loop tracking position & auto-skipping silence (suspended during A/B raw comparison and pause auditioning)
-    LaunchedEffect(isPlaying, skipSilencePreview, isComparingRaw, segments, auditionTargetEndMs) {
+    // Playback loop tracking position & auto-skipping or time-warping silence
+    LaunchedEffect(isPlaying, skipSilencePreview, isWarpPreview, isComparingRaw, segments, auditionTargetEndMs, playbackSpeed) {
         while (isPlaying) {
             val pos = exoPlayer.currentPosition
             currentPositionMs = pos
@@ -145,17 +148,47 @@ fun EditorScreen(
                 exoPlayer.pause()
                 auditionTargetEndMs = -1L
                 auditioningPauseId = null
-            } else if (skipSilencePreview && !isComparingRaw && auditionTargetEndMs <= 0L) {
+            } else if (!isComparingRaw && auditionTargetEndMs <= 0L) {
                 val currentSilence = segments.firstOrNull {
                     it.isSilence && !it.isExcluded && pos in it.startMs until it.endMs
                 }
-                if (currentSilence != null && currentSilence.endMs < originalDurationMs) {
-                    exoPlayer.seekTo(currentSilence.endMs)
-                    currentPositionMs = currentSilence.endMs
+                if (isWarpPreview) {
+                    val targetSpeed = if (currentSilence != null) 3.0f else playbackSpeed
+                    if (exoPlayer.playbackParameters.speed != targetSpeed) {
+                        exoPlayer.playbackParameters = PlaybackParameters(targetSpeed)
+                    }
+                } else if (skipSilencePreview) {
+                    if (exoPlayer.playbackParameters.speed != playbackSpeed) {
+                        exoPlayer.playbackParameters = PlaybackParameters(playbackSpeed)
+                    }
+                    if (currentSilence != null && currentSilence.endMs < originalDurationMs) {
+                        exoPlayer.seekTo(currentSilence.endMs)
+                        currentPositionMs = currentSilence.endMs
+                    }
+                } else {
+                    if (exoPlayer.playbackParameters.speed != playbackSpeed) {
+                        exoPlayer.playbackParameters = PlaybackParameters(playbackSpeed)
+                    }
                 }
             }
             delay(35)
         }
+    }
+
+    // Live Decibel Calculation from Audio Energy at Playhead
+    val currentAmp = remember(currentPositionMs, waveformAmplitudes, originalDurationMs) {
+        if (waveformAmplitudes.isNotEmpty() && originalDurationMs > 0L) {
+            val index = ((currentPositionMs.toFloat() / originalDurationMs) * waveformAmplitudes.size).toInt()
+                .coerceIn(0, waveformAmplitudes.size - 1)
+            waveformAmplitudes[index]
+        } else 0f
+    }
+    val currentDb = remember(currentAmp) {
+        if (currentAmp > 0.0001f) (20f * kotlin.math.log10(currentAmp)).coerceIn(-60f, 0f)
+        else -60f
+    }
+    val isCurrentPositionSilence = remember(currentPositionMs, segments) {
+        segments.any { it.isSilence && !it.isExcluded && currentPositionMs in it.startMs until it.endMs }
     }
 
     val silences = remember(segments) { segments.filter { it.isSilence } }
@@ -452,25 +485,54 @@ fun EditorScreen(
                     )
                 }
 
-                // Skip Silence Switch
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Skip",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (skipSilencePreview) PrimaryCyan else TextSecondary
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Switch(
-                        checked = skipSilencePreview,
-                        onCheckedChange = { onToggleSkipSilence(it) },
-                        modifier = Modifier.height(24.dp),
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = BgDark,
-                            checkedTrackColor = PrimaryCyan,
-                            uncheckedTrackColor = CardDarkElevated
+                // Playback JumpCut / Warp Capsule
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(CardDarkElevated)
+                        .border(1.dp, CardBorderSubtle, RoundedCornerShape(8.dp))
+                        .padding(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (skipSilencePreview && !isWarpPreview) PrimaryCyan else Color.Transparent)
+                            .clickable {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                if (isWarpPreview) isWarpPreview = false
+                                onToggleSkipSilence(!skipSilencePreview)
+                            }
+                            .padding(horizontal = 7.dp, vertical = 3.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Cut",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (skipSilencePreview && !isWarpPreview) BgDark else TextSecondary
                         )
-                    )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isWarpPreview) PrimaryCyan else Color.Transparent)
+                            .clickable {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                isWarpPreview = !isWarpPreview
+                            }
+                            .padding(horizontal = 7.dp, vertical = 3.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "3× Warp",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isWarpPreview) BgDark else TextSecondary
+                        )
+                    }
                 }
             }
 
@@ -726,9 +788,18 @@ fun EditorScreen(
                                     )
                                 )
 
-                                Spacer(modifier = Modifier.height(10.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
 
-                                // Slider 2: Silence Sensitivity (dB)
+                                // Real-Time Studio VU Level Meter
+                                StudioVuMeter(
+                                    currentDb = currentDb,
+                                    thresholdDb = cutSettings.silenceThresholdDb,
+                                    isSilence = isCurrentPositionSilence
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Slider 2: Silence Sensitivity (dB) + AI Auto-Calibrate
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -738,25 +809,75 @@ fun EditorScreen(
                                         Text(text = "Silence Sensitivity", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                                         Text(text = "Base cutoff threshold", fontSize = 10.sp, color = TextSecondary)
                                     }
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(CardDarkElevated)
-                                            .border(1.dp, CardBorderSubtle, RoundedCornerShape(6.dp))
-                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Text(
-                                            text = "${cutSettings.silenceThresholdDb.toInt()} dB",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = PrimaryCyan,
-                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                        )
+                                        // AI Auto-Calibrate Button
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(PrimaryCyan.copy(alpha = 0.15f))
+                                                .border(1.dp, PrimaryCyan.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                                .clickable {
+                                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    if (waveformAmplitudes.isNotEmpty()) {
+                                                        val nonZero = waveformAmplitudes.filter { it > 0.0001f }.sorted()
+                                                        if (nonZero.isNotEmpty()) {
+                                                            val noiseAmp = nonZero[(nonZero.size * 0.15f).toInt().coerceIn(0, nonZero.size - 1)]
+                                                            val speechAmp = nonZero[(nonZero.size * 0.75f).toInt().coerceIn(0, nonZero.size - 1)]
+                                                            val noiseDb = (20f * kotlin.math.log10(noiseAmp)).coerceIn(-60f, -20f)
+                                                            val speechDb = (20f * kotlin.math.log10(speechAmp)).coerceIn(-40f, -5f)
+                                                            val calibratedThreshold = ((noiseDb + speechDb) / 2f).coerceIn(-42f, -22f)
+                                                            onSettingsChanged(
+                                                                cutSettings.copy(
+                                                                    silenceThresholdDb = calibratedThreshold,
+                                                                    voiceNoiseRejection = if (noiseDb > -35f) 0.75f else 0.60f
+                                                                )
+                                                            )
+                                                            android.widget.Toast.makeText(
+                                                                context,
+                                                                "AI Calibrated: ${calibratedThreshold.toInt()} dB (Noise floor: ${noiseDb.toInt()} dB)",
+                                                                android.widget.Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        }
+                                                    }
+                                                }
+                                                .padding(horizontal = 7.dp, vertical = 3.dp)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(11.dp))
+                                                Spacer(modifier = Modifier.width(3.dp))
+                                                Text("Auto-Calibrate", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = PrimaryCyan)
+                                            }
+                                        }
+
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(CardDarkElevated)
+                                                .border(1.dp, CardBorderSubtle, RoundedCornerShape(6.dp))
+                                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                        ) {
+                                            Text(
+                                                text = "${cutSettings.silenceThresholdDb.toInt()} dB",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = PrimaryCyan,
+                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                            )
+                                        }
                                     }
                                 }
                                 Slider(
                                     value = cutSettings.silenceThresholdDb,
-                                    onValueChange = { onSettingsChanged(cutSettings.copy(silenceThresholdDb = it)) },
+                                    onValueChange = {
+                                        if (it.toInt() != cutSettings.silenceThresholdDb.toInt()) {
+                                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        }
+                                        onSettingsChanged(cutSettings.copy(silenceThresholdDb = it))
+                                    },
                                     valueRange = -45f..-18f,
                                     colors = SliderDefaults.colors(
                                         thumbColor = PrimaryCyan,
@@ -1370,7 +1491,8 @@ fun EditorScreen(
                 showExportSheet = false
                 onExportConfirm(config)
             },
-            onExportEdl = onExportEdl
+            onExportEdl = onExportEdl,
+            onExportSubtitles = onExportSubtitles
         )
     }
 
@@ -1444,4 +1566,117 @@ fun formatTime(ms: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return String.format(Locale.US, "%02d:%02d", minutes, seconds)
+}
+
+@Composable
+fun StudioVuMeter(
+    currentDb: Float,
+    thresholdDb: Float,
+    isSilence: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val normalizedLevel = ((currentDb + 60f) / 60f).coerceIn(0f, 1f)
+    val normalizedThreshold = ((thresholdDb + 60f) / 60f).coerceIn(0f, 1f)
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(CardDarkElevated)
+            .border(1.dp, CardBorderSubtle, RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Equalizer,
+                    contentDescription = null,
+                    tint = if (isSilence) SilenceRed else PrimaryCyan,
+                    modifier = Modifier.size(13.dp)
+                )
+                Spacer(modifier = Modifier.width(5.dp))
+                Text(
+                    text = "STUDIO VU LEVEL",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.5.sp,
+                    color = TextMuted
+                )
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = String.format(Locale.US, "%.1f dB", currentDb),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    color = if (isSilence) SilenceRed else PrimaryCyan
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (isSilence) SilenceRed.copy(alpha = 0.2f) else PrimaryCyan.copy(alpha = 0.2f))
+                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = if (isSilence) "CUT" else "VOICE",
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (isSilence) SilenceRed else PrimaryCyan
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Segmented LED VU Track with Threshold needle
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp))
+        ) {
+            // Background track
+            drawRect(color = BgDark)
+
+            // Active level fill
+            if (normalizedLevel > 0.01f) {
+                val fillWidth = size.width * normalizedLevel
+                drawRect(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(GreenSuccess, PrimaryCyan, GoldPro, SilenceRed),
+                        startX = 0f,
+                        endX = size.width
+                    ),
+                    size = androidx.compose.ui.geometry.Size(fillWidth, size.height)
+                )
+            }
+
+            // Threshold marker needle
+            val thresholdX = size.width * normalizedThreshold
+            drawLine(
+                color = Color.White,
+                start = androidx.compose.ui.geometry.Offset(thresholdX, 0f),
+                end = androidx.compose.ui.geometry.Offset(thresholdX, size.height),
+                strokeWidth = 2.dp.toPx()
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("-60 dB", fontSize = 8.sp, color = TextMuted)
+            Text("Threshold: ${thresholdDb.toInt()} dB", fontSize = 8.sp, color = PrimaryCyan, fontWeight = FontWeight.Bold)
+            Text("0 dB", fontSize = 8.sp, color = TextMuted)
+        }
+    }
 }

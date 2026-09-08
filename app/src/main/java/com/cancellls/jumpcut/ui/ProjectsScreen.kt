@@ -54,6 +54,7 @@ fun ProjectsScreen(
     onDeleteProject: (String) -> Unit,
     onStartNewProject: () -> Unit,
     onExportEdl: ((SavedProject, Boolean) -> Unit)? = null,
+    onExportSubtitles: ((SavedProject, Boolean) -> Unit)? = null,
     onReopenProject: ((SavedProject) -> Unit)? = null,
     onClearAllProjects: (() -> Unit)? = null
 ) {
@@ -267,6 +268,9 @@ fun ProjectsScreen(
                         onExportEdl = if (project.segmentsJson != null && onExportEdl != null) {
                             { onExportEdl(project, false) }
                         } else null,
+                        onExportSubtitles = if (project.segmentsJson != null && onExportSubtitles != null) {
+                            { asVtt -> onExportSubtitles(project, asVtt) }
+                        } else null,
                         onDelete = { projectToDelete = project }
                     )
                 }
@@ -367,6 +371,7 @@ fun ProjectCard(
     onShare: () -> Unit,
     onEditInStudio: (() -> Unit)? = null,
     onExportEdl: (() -> Unit)? = null,
+    onExportSubtitles: ((Boolean) -> Unit)? = null,
     onDelete: () -> Unit
 ) {
     val dateStr = remember(project.createdAtMs) {
@@ -568,6 +573,30 @@ fun ProjectCard(
                                 },
                                 leadingIcon = {
                                     Icon(Icons.Default.DesktopWindows, contentDescription = null, tint = ElectricBlue, modifier = Modifier.size(16.dp))
+                                }
+                            )
+                        }
+
+                        if (onExportSubtitles != null) {
+                            DropdownMenuItem(
+                                text = { Text("Export Subtitles (.SRT)", color = TextPrimary, fontSize = 13.sp) },
+                                onClick = {
+                                    showMenu = false
+                                    onExportSubtitles(false)
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Subtitles, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(16.dp))
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = { Text("Export Subtitles (.VTT)", color = TextPrimary, fontSize = 13.sp) },
+                                onClick = {
+                                    showMenu = false
+                                    onExportSubtitles(true)
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.ClosedCaption, contentDescription = null, tint = ElectricBlue, modifier = Modifier.size(16.dp))
                                 }
                             )
                         }

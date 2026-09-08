@@ -7,8 +7,10 @@ import android.os.Looper
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
+import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.ScaleAndRotateTransformation
+import androidx.media3.effect.SpeedChangeEffect
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
@@ -45,10 +47,19 @@ object VideoSplicer {
         studioAudioLeveling: Boolean = true,
         roomToneSmoothing: Boolean = true,
         ambientNoiseFloorDb: Float = -40f,
-        videoResolution: String = "original"
+        videoResolution: String = "original",
+        silenceTimeWarp: Boolean = false,
+        silenceSpeedMultiplier: Float = 3.0f,
+        allSegments: List<CutSegment> = emptyList()
     ): Flow<SplicerProgress> = callbackFlow {
         val maxDuration = if (totalDurationMs > 0L) totalDurationMs else Long.MAX_VALUE
-        val validSegments = speechSegments.mapNotNull { seg ->
+        val segmentsToProcess = if (silenceTimeWarp && allSegments.isNotEmpty()) {
+            allSegments
+        } else {
+            speechSegments
+        }
+
+        val validSegments = segmentsToProcess.mapNotNull { seg ->
             val start = seg.startMs.coerceIn(0L, (maxDuration - 60L).coerceAtLeast(0L))
             val end = seg.endMs.coerceIn(start + 50L, maxDuration)
             if (end - start >= 60L) {
@@ -57,27 +68,31 @@ object VideoSplicer {
         }
 
         if (validSegments.isEmpty()) {
-            trySend(SplicerProgress.Error(IllegalArgumentException("No valid speech segments to export within duration")))
+            trySend(SplicerProgress.Error(IllegalArgumentException("No valid segments to export within duration")))
             close()
             return@callbackFlow
         }
 
-        // Merge adjacent segments (or micro-gaps <= 80ms) into unified continuous clips.
-        // This dramatically reduces MediaCodec seek and re-initialization overhead on device hardware,
-        // preventing hardware decoder starvation and freeze at 30%/50%.
+        // When not in time-warp mode, merge adjacent segments (or micro-gaps <= 80ms) into unified clips
+        // to reduce MediaCodec seek and re-initialization overhead.
         val sortedSegments = validSegments.sortedBy { it.startMs }
-        val mergedSegments = mutableListOf<CutSegment>()
-        for (seg in sortedSegments) {
-            if (mergedSegments.isEmpty()) {
-                mergedSegments.add(seg)
-            } else {
-                val last = mergedSegments.last()
-                if (seg.startMs <= last.endMs + 80L) {
-                    mergedSegments[mergedSegments.size - 1] = last.copy(endMs = maxOf(last.endMs, seg.endMs))
+        val mergedSegments = if (!silenceTimeWarp) {
+            val list = mutableListOf<CutSegment>()
+            for (seg in sortedSegments) {
+                if (list.isEmpty()) {
+                    list.add(seg)
                 } else {
-                    mergedSegments.add(seg)
+                    val last = list.last()
+                    if (seg.startMs <= last.endMs + 80L) {
+                        list[list.size - 1] = last.copy(endMs = maxOf(last.endMs, seg.endMs))
+                    } else {
+                        list.add(seg)
+                    }
                 }
             }
+            list
+        } else {
+            sortedSegments
         }
 
         val handler = Handler(Looper.getMainLooper())
@@ -95,9 +110,12 @@ object VideoSplicer {
         val identityZoomEffect = ScaleAndRotateTransformation.Builder()
             .setScale(baseScale, baseScale)
             .build()
+        val speedChangeGlEffect = SpeedChangeEffect(silenceSpeedMultiplier)
 
         val editedMediaItems = mergedSegments.mapIndexed { index, seg ->
             val isLast = (index == mergedSegments.size - 1)
+            val isWarpedSilence = silenceTimeWarp && seg.isSilence && !seg.isExcluded
+
             val clippingBuilder = MediaItem.ClippingConfiguration.Builder()
                 .setStartPositionMs(seg.startMs)
                 .setStartsAtKeyFrame(false)
@@ -120,7 +138,9 @@ object VideoSplicer {
                 .setFlattenForSlowMotion(false)
 
             val videoEffects = if (!extractAudioOnly) {
-                if (autoZoomJumpcuts) {
+                if (isWarpedSilence) {
+                    listOf(speedChangeGlEffect, identityZoomEffect)
+                } else if (autoZoomJumpcuts) {
                     if (index % 2 == 1) listOf(punchInZoomEffect) else listOf(identityZoomEffect)
                 } else if (baseScale != 1.0f) {
                     listOf(identityZoomEffect)
@@ -131,7 +151,9 @@ object VideoSplicer {
                 emptyList()
             }
 
-            val audioProcessors = if (studioAudioLeveling || roomToneSmoothing || microCrossfade) {
+            val audioProcessors = if (isWarpedSilence) {
+                listOf(SonicAudioProcessor().apply { setSpeed(silenceSpeedMultiplier) })
+            } else if (studioAudioLeveling || roomToneSmoothing || microCrossfade) {
                 listOf(
                     StudioAudioProcessor(
                         segmentDurationMs = seg.durationMs,

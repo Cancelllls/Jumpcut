@@ -148,6 +148,95 @@ object EdlExporter {
         return file
     }
 
+    /**
+     * Generates standard SubRip (.SRT) timed subtitle format for CapCut, Premiere, and social video tools.
+     */
+    fun generateSrt(
+        speechSegments: List<CutSegment>
+    ): String {
+        val sb = StringBuilder()
+        speechSegments.forEachIndexed { index, seg ->
+            val cueNumber = index + 1
+            val start = msToSrtTimecode(seg.startMs)
+            val end = msToSrtTimecode(seg.endMs)
+            sb.append(cueNumber).append("\n")
+            sb.append(start).append(" --> ").append(end).append("\n")
+            sb.append("[Speech ").append(cueNumber).append("]\n\n")
+        }
+        return sb.toString()
+    }
+
+    /**
+     * Generates WebVTT (.VTT) subtitle format for web players and video editors.
+     */
+    fun generateVtt(
+        projectName: String,
+        speechSegments: List<CutSegment>
+    ): String {
+        val sb = StringBuilder()
+        val sanitized = projectName.replace("[^a-zA-Z0-9 _-]".toRegex(), " ")
+        sb.append("WEBVTT - ").append(sanitized).append("\n\n")
+        speechSegments.forEachIndexed { index, seg ->
+            val cueNumber = index + 1
+            val start = msToVttTimecode(seg.startMs)
+            val end = msToVttTimecode(seg.endMs)
+            sb.append(cueNumber).append("\n")
+            sb.append(start).append(" --> ").append(end).append("\n")
+            sb.append("[Speech ").append(cueNumber).append("]\n\n")
+        }
+        return sb.toString()
+    }
+
+    fun exportSrtToFile(
+        context: Context,
+        projectName: String,
+        speechSegments: List<CutSegment>
+    ): File {
+        val srtContent = generateSrt(speechSegments)
+        val exportDir = File(context.filesDir, "exports").apply { mkdirs() }
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val sanitized = projectName.replace("[^a-zA-Z0-9_-]".toRegex(), "_")
+        val file = File(exportDir, "${sanitized}_$timeStamp.srt")
+        file.writeText(srtContent)
+        return file
+    }
+
+    fun exportVttToFile(
+        context: Context,
+        projectName: String,
+        speechSegments: List<CutSegment>
+    ): File {
+        val vttContent = generateVtt(projectName, speechSegments)
+        val exportDir = File(context.filesDir, "exports").apply { mkdirs() }
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val sanitized = projectName.replace("[^a-zA-Z0-9_-]".toRegex(), "_")
+        val file = File(exportDir, "${sanitized}_$timeStamp.vtt")
+        file.writeText(vttContent)
+        return file
+    }
+
+    fun msToSrtTimecode(ms: Long): String {
+        val safeMs = ms.coerceAtLeast(0L)
+        val millis = safeMs % 1000
+        val totalSeconds = safeMs / 1000
+        val seconds = totalSeconds % 60
+        val totalMinutes = totalSeconds / 60
+        val minutes = totalMinutes % 60
+        val hours = totalMinutes / 60
+        return String.format(Locale.US, "%02d:%02d:%02d,%03d", hours, minutes, seconds, millis)
+    }
+
+    fun msToVttTimecode(ms: Long): String {
+        val safeMs = ms.coerceAtLeast(0L)
+        val millis = safeMs % 1000
+        val totalSeconds = safeMs / 1000
+        val seconds = totalSeconds % 60
+        val totalMinutes = totalSeconds / 60
+        val minutes = totalMinutes % 60
+        val hours = totalMinutes / 60
+        return String.format(Locale.US, "%02d:%02d:%02d.%03d", hours, minutes, seconds, millis)
+    }
+
     fun msToTimecode(ms: Long, fps: Int): String {
         val safeFps = fps.coerceAtLeast(1)
         val totalFrames = (ms * safeFps) / 1000L

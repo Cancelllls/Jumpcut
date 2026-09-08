@@ -119,6 +119,7 @@ class MainActivity : ComponentActivity() {
                                     onApplyPreset = { preset -> viewModel.updateSettings(preset) },
                                     onDeleteCustomPreset = { id -> viewModel.deleteCustomPreset(id) },
                                     onExportProjectEdl = { project, asXml -> viewModel.exportProjectEdl(this@MainActivity, project, asXml) },
+                                    onExportProjectSubtitles = { project, asVtt -> viewModel.exportProjectSubtitles(this@MainActivity, project, asVtt) },
                                     onDeleteProject = { id -> viewModel.deleteProject(id) },
                                     onClearAllProjects = { viewModel.clearAllProjects() },
                                     onReopenProject = { project -> viewModel.reopenProjectInEditor(project) },
@@ -283,6 +284,9 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onExportEdl = { asXml ->
                                         viewModel.exportCurrentEdl(this@MainActivity, asXml)
+                                    },
+                                    onExportSubtitles = { asVtt ->
+                                        viewModel.exportCurrentSubtitles(this@MainActivity, asVtt)
                                     },
                                     onBackClick = { viewModel.reset() }
                                 )

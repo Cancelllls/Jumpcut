@@ -49,6 +49,17 @@ fun ExportScreen(
     onCancelClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val isExporting = state is ProcessingState.Exporting
+
+    DisposableEffect(isExporting) {
+        val activity = context as? android.app.Activity
+        if (isExporting) {
+            activity?.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -98,7 +109,33 @@ fun ExportScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(40.dp))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(CardDarkElevated)
+                        .border(1.dp, CardBorderSubtle, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Bolt,
+                        contentDescription = null,
+                        tint = PrimaryCyan,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Screen kept awake for encoding",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextSecondary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
 
                 OutlinedButton(
                     onClick = onCancelClick,

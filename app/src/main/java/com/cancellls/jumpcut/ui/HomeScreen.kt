@@ -55,6 +55,7 @@ fun HomeScreen(
     onApplyPreset: (CutSettings) -> Unit,
     onDeleteCustomPreset: ((String) -> Unit)? = null,
     onExportProjectEdl: ((SavedProject, Boolean) -> Unit)? = null,
+    onExportProjectSubtitles: ((SavedProject, Boolean) -> Unit)? = null,
     onDeleteProject: (String) -> Unit,
     onClearAllProjects: (() -> Unit)? = null,
     onReopenProject: ((SavedProject) -> Unit)? = null,
@@ -148,6 +149,7 @@ fun HomeScreen(
                     onDeleteProject = onDeleteProject,
                     onStartNewProject = { selectedTab = 0 },
                     onExportEdl = onExportProjectEdl,
+                    onExportSubtitles = onExportProjectSubtitles,
                     onReopenProject = onReopenProject,
                     onClearAllProjects = onClearAllProjects
                 )

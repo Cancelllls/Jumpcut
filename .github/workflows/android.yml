@@ -23,7 +23,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
@@ -59,15 +59,15 @@ jobs:
           mkdir -p release_assets
           # Find and copy signed release apk
           if [ -f app/build/outputs/apk/release/app-release.apk ]; then
-            cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-v1.5.4-release.apk
+            cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-v1.5.5-release.apk
             cp app/build/outputs/apk/release/app-release.apk release_assets/JumpCut-release.apk
           elif [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-v1.5.4-release.apk
+            cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-v1.5.5-release.apk
             cp app/build/outputs/apk/release/app-release-unsigned.apk release_assets/JumpCut-release.apk
           fi
           # Copy debug apk
           if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-v1.5.4-debug.apk
+            cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-v1.5.5-debug.apk
             cp app/build/outputs/apk/debug/app-debug.apk release_assets/JumpCut-debug.apk
           fi
           echo "Release assets ready:"
@@ -92,31 +92,36 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.5.4' }}
-          name: "JumpCut AI ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.5.4' }}"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.5.5' }}
+          name: "JumpCut AI ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.5.5' }}"
           draft: false
           prerelease: false
           body: |
-            ## 🎛️ JumpCut AI v1.5.4 (Obsidian Titanium & Calibrated Luminous Studio UI/UX Overhaul)
+            ## 🎛️ JumpCut AI v1.5.5 (Studio Suite: SRT/VTT Subtitles, Silence Time-Warp 3×, Real-Time VU Meter & AI Auto-Calibrate)
             
-            ### 💎 What's New in v1.5.4:
-            - **Titanium Obsidian & Calibrated Luminous Cyan-Teal Canvas**:
-              - Deep obsidian canvas (`#07090E`), titanium slate surfaces (`#0D1017`), and top specular glass borders (`#38FFFFFF` to `#08FFFFFF`).
-              - Upgraded accent palette to high-vibrancy calibrated studio cyan-teal (`#00D2B4`) and multi-stop cyber satin gradients.
-            - **Studio Ingest Bay & Hardware Source Rack**:
-              - Unified acoustic chamber dropzone with format badges (`MP4 • MOV • MKV • MP3 • WAV`) and instant silence detection.
-              - 3-way tactile source rack: `Gallery` (satin teal button brush), `Files`, and `URL Stream`.
-            - **Sleek Studio Navigation Dock**:
-              - Replaced bulky default Material 3 bar with a slim 62dp studio dock featuring tracked micro-labels, live project counters, and glowing active indicator lines.
-            - **Editor Workstation Refinements**:
-              - Docked top control bar with cleansed project titles (no raw timestamp strings).
-              - Sleek obsidian-thumb toggle switches gliding on illuminated tracks (eliminated stark white circles).
-              - Integrated sponsor frame with micro-telemetry tags (`SPONSOR` • `FREE TIER SUPPORT`).
-              - Inline `Edit` buttons on all project cards across Home and Library.
+            ### 💎 What's New in v1.5.5:
+            - **Timed Subtitle Export (.SRT & .VTT)**:
+              - Export millisecond-accurate speech cues (`.srt` / `.vtt`) with 1 tap directly from the Export sheet or project library cards.
+              - Instant captioning and subtitle sync ready for CapCut, Premiere Pro, and DaVinci Resolve.
+            - **Silence Time-Warp (3× Smooth Speed-Up vs. Hard Cut)**:
+              - Instead of hard-cutting pauses, glide through silent gaps at 3× speed using Media3 `SpeedChangeEffect` and `SonicAudioProcessor`.
+              - Live in-editor preview toggle (`Cut` vs `3× Warp`) with real-time playback speed adaptation.
+            - **Real-Time Hardware VU Decibel Meter**:
+              - Live dynamic dB peak meter calculating instantaneous energy with multi-color gradient bar, threshold needle, and reactive `VOICE` vs `CUT` telemetry tags.
+            - **1-Tap AI Auto-Calibrate**:
+              - Samples waveform energy percentiles (noise floor vs speech core) to automatically tune dB sensitivity and voice noise armor to the clip's acoustic environment.
+            - **Encoding Screen WakeLock (`FLAG_KEEP_SCREEN_ON`)**:
+              - Keeps hardware display awake and active during heavy MediaCodec rendering to guarantee zero Doze/background OS terminations.
+            - **Tactile Studio Haptic Feedback**:
+              - Integrated subtle tactile ticks across all sliders, speed selectors, tab switches, and export actions.
+            - **Automated Engine Test Suite**:
+              - Added comprehensive unit tests covering silence detection algorithms, EDL, FCPXML, SRT, and VTT timecode formatting.
+            - **Modernized CI Workflow**:
+              - Upgraded GitHub Actions to `actions/setup-java@v5` with automated release packaging.
             
             ### 📱 Download & Install:
-            - **`JumpCut-v1.5.4-release.apk`** / **`JumpCut-release.apk`** — Production Signed Release (Direct APK installer)
-            - **`JumpCut-v1.5.4-debug.apk`** / **`JumpCut-debug.apk`** — Debug Build with extended developer logging
+            - **`JumpCut-v1.5.5-release.apk`** / **`JumpCut-release.apk`** — Production Signed Release (Direct APK installer)
+            - **`JumpCut-v1.5.5-debug.apk`** / **`JumpCut-debug.apk`** — Debug Build with extended developer logging
           files: release_assets/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

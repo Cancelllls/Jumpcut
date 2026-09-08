@@ -36,9 +36,11 @@ fun ExportBottomSheet(
     onOpenPro: () -> Unit = {},
     onDismiss: () -> Unit,
     onConfirmExport: (ExportConfig) -> Unit,
-    onExportEdl: ((Boolean) -> Unit)? = null
+    onExportEdl: ((Boolean) -> Unit)? = null,
+    onExportSubtitles: ((Boolean) -> Unit)? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     var extractAudioOnly by remember { mutableStateOf(initialConfig.extractAudioOnly || !isVideo) }
     var audioFormat by remember { mutableStateOf(initialConfig.audioFormat) }
     var videoResolution by remember { mutableStateOf(initialConfig.videoResolution) }
@@ -47,6 +49,7 @@ fun ExportBottomSheet(
     var microCrossfade by remember { mutableStateOf(initialConfig.microCrossfade) }
     var studioAudioLeveling by remember { mutableStateOf(initialConfig.studioAudioLeveling) }
     var roomToneSmoothing by remember { mutableStateOf(initialConfig.roomToneSmoothing) }
+    var silenceTimeWarp by remember { mutableStateOf(initialConfig.silenceTimeWarp) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -512,7 +515,79 @@ fun ExportBottomSheet(
                 }
                 Switch(
                     checked = saveToGallery,
-                    onCheckedChange = { saveToGallery = it },
+                    onCheckedChange = {
+                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                        saveToGallery = it
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = TextPrimary,
+                        checkedTrackColor = PrimaryCyan,
+                        uncheckedTrackColor = CardBorder
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Silence Handling Mode: Cut vs Time-Warp (3x)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CardDark)
+                    .clickable {
+                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                        silenceTimeWarp = !silenceTimeWarp
+                    }
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FastForward,
+                        contentDescription = null,
+                        tint = if (silenceTimeWarp) PrimaryCyan else TextSecondary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Silence Time Warp (3× Speed)",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            if (silenceTimeWarp) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(PrimaryCyan.copy(alpha = 0.2f))
+                                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                                ) {
+                                    Text("FAST-FORWARD", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = PrimaryCyan)
+                                }
+                            }
+                        }
+                        Text(
+                            text = if (silenceTimeWarp) "Smooth 3× speed ramp during pauses (no jumpcuts)"
+                                   else "Standard JumpCut: completely cuts and drops silence",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+                Switch(
+                    checked = silenceTimeWarp,
+                    onCheckedChange = {
+                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                        silenceTimeWarp = it
+                    },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = TextPrimary,
                         checkedTrackColor = PrimaryCyan,
@@ -527,6 +602,7 @@ fun ExportBottomSheet(
             if (!isProUser && remainingExports <= 0) {
                 Button(
                     onClick = {
+                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                         onDismiss()
                         onOpenPro()
                     },
@@ -558,6 +634,7 @@ fun ExportBottomSheet(
             } else {
                 Button(
                     onClick = {
+                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                         onConfirmExport(
                             ExportConfig(
                                 extractAudioOnly = extractAudioOnly,
@@ -567,7 +644,8 @@ fun ExportBottomSheet(
                                 studioAudioLeveling = studioAudioLeveling,
                                 roomToneSmoothing = roomToneSmoothing,
                                 audioFormat = audioFormat,
-                                videoResolution = videoResolution
+                                videoResolution = videoResolution,
+                                silenceTimeWarp = silenceTimeWarp
                             )
                         )
                     },
@@ -599,18 +677,92 @@ fun ExportBottomSheet(
                 }
             }
 
+            // Subtitle & NLE Bridge Buttons
+            if (onExportSubtitles != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                            onExportSubtitles(false)
+                            onDismiss()
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = CardDark,
+                            contentColor = TextPrimary
+                        ),
+                        border = ButtonDefaults.outlinedButtonBorder.copy(
+                            brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder))
+                        )
+                    ) {
+                        Icon(
+                            Icons.Default.Subtitles,
+                            contentDescription = null,
+                            tint = PrimaryCyan,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Export .SRT",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                            onExportSubtitles(true)
+                            onDismiss()
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = CardDark,
+                            contentColor = TextPrimary
+                        ),
+                        border = ButtonDefaults.outlinedButtonBorder.copy(
+                            brush = Brush.horizontalGradient(listOf(CardBorder, CardBorder))
+                        )
+                    ) {
+                        Icon(
+                            Icons.Default.ClosedCaption,
+                            contentDescription = null,
+                            tint = ElectricBlue,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Export .VTT",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
             // Desktop NLE Bridge Export Button
             if (onExportEdl != null) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 OutlinedButton(
                     onClick = {
+                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                         onExportEdl(false)
                         onDismiss()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(14.dp),
+                        .height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = CardDark,
                         contentColor = TextPrimary
@@ -623,12 +775,12 @@ fun ExportBottomSheet(
                         Icons.Default.DesktopWindows,
                         contentDescription = null,
                         tint = PrimaryCyan,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Export Timeline (.EDL for Premiere & DaVinci)",
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
