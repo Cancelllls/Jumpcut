@@ -35,19 +35,24 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
+import com.cancellls.jumpcut.ads.BannerAdComposable
 import com.cancellls.jumpcut.model.CreatorPreset
 import com.cancellls.jumpcut.model.CutSegment
 import com.cancellls.jumpcut.model.CutSettings
+import com.cancellls.jumpcut.model.EditorHistorySnapshot
 import com.cancellls.jumpcut.model.ExportConfig
 import com.cancellls.jumpcut.model.MediaItem
+import com.cancellls.jumpcut.model.TargetAspectRatio
 import com.cancellls.jumpcut.theme.*
 import kotlinx.coroutines.delay
 import java.util.Locale
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.ui.input.pointer.pointerInput
-import com.cancellls.jumpcut.ads.BannerAdComposable
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -71,6 +76,10 @@ fun EditorScreen(
     onToggleSegment: (Int) -> Unit,
     onToggleAllSilences: ((Boolean) -> Unit)? = null,
     onResetAllSegments: (() -> Unit)? = null,
+    onSplitAtPosition: ((Long) -> Boolean)? = null,
+    onToggleSegmentCutStatus: ((Int) -> Unit)? = null,
+    onNudgeSegment: ((Int, Long, Long) -> Unit)? = null,
+    onManualUpdateSegments: ((List<CutSegment>) -> Unit)? = null,
     onExportConfirm: (ExportConfig) -> Unit,
     onSavePreset: ((String, CutSettings) -> Unit)? = null,
     onExportEdl: ((Boolean) -> Unit)? = null,
@@ -98,10 +107,48 @@ fun EditorScreen(
     var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
     var isComparingRaw by remember { mutableStateOf(false) }
     var isWarpPreview by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: Parameters, 1: Presets, 2: Silence Inspector
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Parameters, 1: Presets, 2: Silence Inspector, 3: Manual Pro
     var showExportSheet by remember { mutableStateOf(false) }
     var showSavePresetDialog by remember { mutableStateOf(false) }
     var newPresetName by remember { mutableStateOf("") }
+
+    // Pro Manual Editor & Formatting States
+    var selectedSegmentId by remember { mutableStateOf<Int?>(null) }
+    var previewAspectRatio by remember { mutableStateOf(exportConfig.targetAspectRatio) }
+    var markInMs by remember { mutableStateOf<Long?>(null) }
+    var markOutMs by remember { mutableStateOf<Long?>(null) }
+    val undoStack = remember { mutableStateListOf<EditorHistorySnapshot>() }
+    val redoStack = remember { mutableStateListOf<EditorHistorySnapshot>() }
+
+    fun pushUndo(description: String) {
+        undoStack.add(EditorHistorySnapshot(segments = segments, cutSettings = cutSettings, description = description))
+        redoStack.clear()
+        if (undoStack.size > 35) {
+            undoStack.removeAt(0)
+        }
+    }
+
+    fun handleUndo() {
+        if (undoStack.isEmpty()) return
+        val current = EditorHistorySnapshot(segments = segments, cutSettings = cutSettings, description = "Current")
+        redoStack.add(current)
+        val target = undoStack.removeAt(undoStack.size - 1)
+        onManualUpdateSegments?.invoke(target.segments)
+        onSettingsChanged(target.cutSettings)
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        android.widget.Toast.makeText(context, "↶ Undid: ${target.description.ifBlank { "Action" }}", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    fun handleRedo() {
+        if (redoStack.isEmpty()) return
+        val current = EditorHistorySnapshot(segments = segments, cutSettings = cutSettings, description = "Current")
+        undoStack.add(current)
+        val target = redoStack.removeAt(redoStack.size - 1)
+        onManualUpdateSegments?.invoke(target.segments)
+        onSettingsChanged(target.cutSettings)
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        android.widget.Toast.makeText(context, "↷ Redid: ${target.description.ifBlank { "Action" }}", android.widget.Toast.LENGTH_SHORT).show()
+    }
 
     // Audition specific pause segment state
     var auditionTargetEndMs by remember { mutableLongStateOf(-1L) }
@@ -255,6 +302,46 @@ fun EditorScreen(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Undo Button
+                    IconButton(
+                        onClick = { handleUndo() },
+                        enabled = undoStack.isNotEmpty(),
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(if (undoStack.isNotEmpty()) CardDarkElevated else CardDark.copy(alpha = 0.5f))
+                            .border(1.dp, if (undoStack.isNotEmpty()) PrimaryCyan.copy(alpha = 0.5f) else CardBorderSubtle, CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Undo,
+                            contentDescription = "Undo",
+                            tint = if (undoStack.isNotEmpty()) PrimaryCyan else TextMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    // Redo Button
+                    IconButton(
+                        onClick = { handleRedo() },
+                        enabled = redoStack.isNotEmpty(),
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(if (redoStack.isNotEmpty()) CardDarkElevated else CardDark.copy(alpha = 0.5f))
+                            .border(1.dp, if (redoStack.isNotEmpty()) PrimaryCyan.copy(alpha = 0.5f) else CardBorderSubtle, CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Redo,
+                            contentDescription = "Redo",
+                            tint = if (redoStack.isNotEmpty()) PrimaryCyan else TextMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
                     if (onExportEdl != null) {
                         IconButton(
                             onClick = {
@@ -360,22 +447,65 @@ fun EditorScreen(
                     )
                 }
 
-                // Video Resolution & Aspect Ratio Badge
+                // Video Resolution & Aspect Ratio Badge (Clickable Guide Selector)
                 if (media.isVideo) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(8.dp)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(BgDark.copy(alpha = 0.8f))
+                            .background(if (previewAspectRatio != TargetAspectRatio.ORIGINAL) PrimaryCyan.copy(alpha = 0.25f) else BgDark.copy(alpha = 0.8f))
+                            .border(1.dp, if (previewAspectRatio != TargetAspectRatio.ORIGINAL) PrimaryCyan else CardBorderSubtle, RoundedCornerShape(6.dp))
+                            .clickable {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                val values = TargetAspectRatio.entries
+                                val nextIdx = (values.indexOf(previewAspectRatio) + 1) % values.size
+                                previewAspectRatio = values[nextIdx]
+                            }
                             .padding(horizontal = 7.dp, vertical = 3.dp)
                     ) {
                         Text(
-                            text = "${media.width}x${media.height} • $aspectRatioBadge",
+                            text = if (previewAspectRatio == TargetAspectRatio.ORIGINAL) "${media.width}x${media.height} • $aspectRatioBadge"
+                                   else "Crop: ${previewAspectRatio.tag}",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            color = if (previewAspectRatio != TargetAspectRatio.ORIGINAL) PrimaryCyan else TextPrimary
                         )
+                    }
+                }
+
+                // Social Aspect Ratio Safe-Zone Framing Guide Mask
+                if (media.isVideo && previewAspectRatio.ratio != null) {
+                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                        val totalW = maxWidth
+                        val targetW = (maxHeight * previewAspectRatio.ratio!!).coerceAtMost(totalW)
+                        val maskW = ((totalW - targetW) / 2f).coerceAtLeast(0.dp)
+                        if (maskW > 0.dp) {
+                            // Left dark pillarbox mask
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .width(maskW)
+                                    .align(Alignment.CenterStart)
+                                    .background(Color.Black.copy(alpha = 0.65f))
+                            )
+                            // Right dark pillarbox mask
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .width(maskW)
+                                    .align(Alignment.CenterEnd)
+                                    .background(Color.Black.copy(alpha = 0.65f))
+                            )
+                            // Safe frame border with corner guides
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .width(targetW)
+                                    .align(Alignment.Center)
+                                    .border(1.dp, PrimaryCyan.copy(alpha = 0.45f))
+                            )
+                        }
                     }
                 }
 
@@ -544,9 +674,17 @@ fun EditorScreen(
                 segments = segments,
                 totalDurationMs = originalDurationMs,
                 currentPositionMs = currentPositionMs,
+                selectedSegmentId = selectedSegmentId,
+                onSegmentClick = { seg ->
+                    selectedSegmentId = seg.id
+                    currentPositionMs = seg.startMs
+                    exoPlayer.seekTo(seg.startMs)
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                },
                 onSeek = { seekMs ->
                     exoPlayer.seekTo(seekMs)
                     currentPositionMs = seekMs
+                    selectedSegmentId = segments.firstOrNull { seekMs in it.startMs until it.endMs }?.id
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -555,6 +693,148 @@ fun EditorScreen(
                     .border(1.dp, StudioCardBorderBrush, RoundedCornerShape(16.dp))
                     .padding(horizontal = 10.dp, vertical = 8.dp)
             )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Quick Editor Ribbon (Pinned directly under waveform)
+            val currentSegAtPlayhead = remember(segments, currentPositionMs, selectedSegmentId) {
+                segments.firstOrNull { it.id == selectedSegmentId }
+                    ?: segments.firstOrNull { currentPositionMs in it.startMs until it.endMs }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(CardDarkElevated)
+                    .border(1.dp, CardBorderSubtle, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Split at Playhead (Razor Tool)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(PrimaryCyan.copy(alpha = 0.15f))
+                        .border(1.dp, PrimaryCyan.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+                        .clickable {
+                            pushUndo("Split at ${formatTime(currentPositionMs)}")
+                            val splitOk = onSplitAtPosition?.invoke(currentPositionMs) ?: false
+                            if (splitOk) {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                android.widget.Toast.makeText(context, "✂ Sliced at ${formatTime(currentPositionMs)}", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.ContentCut, contentDescription = "Split", tint = PrimaryCyan, modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Split (✂)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = PrimaryCyan)
+                    }
+                }
+
+                // Invert / Toggle Voice / Cut for current segment
+                if (currentSegAtPlayhead != null) {
+                    val isSil = currentSegAtPlayhead.isSilence && !currentSegAtPlayhead.isExcluded
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isSil) GreenSuccess.copy(alpha = 0.18f) else SilenceRed.copy(alpha = 0.18f))
+                            .border(1.dp, if (isSil) GreenSuccess.copy(alpha = 0.4f) else SilenceRed.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                            .clickable {
+                                pushUndo("Toggle Segment #${currentSegAtPlayhead.id}")
+                                onToggleSegmentCutStatus?.invoke(currentSegAtPlayhead.id)
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                if (isSil) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                                contentDescription = null,
+                                tint = if (isSil) GreenSuccess else SilenceRed,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = if (isSil) "Keep Voice" else "Cut Silence",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSil) GreenSuccess else SilenceRed
+                            )
+                        }
+                    }
+                }
+
+                // In / Out Quick Buttons
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (markInMs != null) PrimaryCyan.copy(alpha = 0.25f) else CardDark)
+                            .border(1.dp, CardBorderSubtle, RoundedCornerShape(6.dp))
+                            .clickable {
+                                markInMs = currentPositionMs
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                android.widget.Toast.makeText(context, "In: ${formatTime(currentPositionMs)}", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = if (markInMs != null) "[ ${formatTime(markInMs!!)}" else "[ In",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (markInMs != null) PrimaryCyan else TextSecondary,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (markOutMs != null) PrimaryCyan.copy(alpha = 0.25f) else CardDark)
+                            .border(1.dp, CardBorderSubtle, RoundedCornerShape(6.dp))
+                            .clickable {
+                                markOutMs = currentPositionMs
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                android.widget.Toast.makeText(context, "Out: ${formatTime(currentPositionMs)}", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = if (markOutMs != null) "${formatTime(markOutMs!!)} ]" else "] Out",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (markOutMs != null) PrimaryCyan else TextSecondary,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        )
+                    }
+                }
+
+                // Pro Manual Quick Switch Tab Button
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (selectedTab == 3) PrimaryCyan else CardDark)
+                        .border(1.dp, if (selectedTab == 3) PrimaryCyan else CardBorderSubtle, RoundedCornerShape(6.dp))
+                        .clickable {
+                            selectedTab = 3
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Manual ✂",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (selectedTab == 3) BgDark else PrimaryCyan
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -567,7 +847,7 @@ fun EditorScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
         ) {
-            // Mode Selector Tabs (0: Tuning, 1: Presets, 2: Silence Inspector)
+            // Mode Selector Tabs (0: Tuning, 1: Presets, 2: Silence Inspector, 3: Manual Pro)
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = SurfaceDark,
@@ -637,6 +917,26 @@ fun EditorScreen(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (selectedTab == 2) PrimaryCyan else TextSecondary
+                        )
+                    }
+                }
+
+                Tab(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(if (selectedTab == 3) CardDarkElevated else Color.Transparent)
+                        .padding(vertical = 8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.ContentCut, contentDescription = null, tint = if (selectedTab == 3) PrimaryCyan else TextSecondary, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Manual ✂",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (selectedTab == 3) PrimaryCyan else TextSecondary
                         )
                     }
                 }
@@ -1412,6 +1712,406 @@ fun EditorScreen(
                         }
                     }
                 }
+
+                3 -> {
+                    // TAB 3: PRO MANUAL EDITOR (Razor, Nudge, In/Out Trimming, Segment Inspector)
+                    val activeSeg = remember(segments, currentPositionMs, selectedSegmentId) {
+                        segments.firstOrNull { it.id == selectedSegmentId }
+                            ?: segments.firstOrNull { currentPositionMs in it.startMs until it.endMs }
+                            ?: segments.minByOrNull { kotlin.math.abs(it.startMs - currentPositionMs) }
+                    }
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            // Section 1: Active Segment Inspector & Razor Split
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.ContentCut, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Active Segment Inspector", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                }
+                                if (activeSeg != null) {
+                                    val isCut = activeSeg.isSilence && !activeSeg.isExcluded
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isCut) SilenceRed.copy(alpha = 0.2f) else GreenSuccess.copy(alpha = 0.2f))
+                                            .border(1.dp, if (isCut) SilenceRed.copy(alpha = 0.5f) else GreenSuccess.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = if (isCut) "CUT (REMOVED)" else "VOICE (KEPT)",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = if (isCut) SilenceRed else GreenSuccess
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            if (activeSeg != null) {
+                                val isCut = activeSeg.isSilence && !activeSeg.isExcluded
+                                val segDuration = activeSeg.endMs - activeSeg.startMs
+
+                                // Info Row
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(CardDarkElevated)
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text("Segment #${activeSeg.id}", fontSize = 10.sp, color = TextSecondary)
+                                        Text(
+                                            "${formatTime(activeSeg.startMs)} → ${formatTime(activeSeg.endMs)}",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = PrimaryCyan,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                        )
+                                    }
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text("Duration", fontSize = 10.sp, color = TextSecondary)
+                                        Text(
+                                            String.format(Locale.US, "%.2fs (%d ms)", segDuration / 1000f, segDuration),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextPrimary,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // Toggle Cut / Voice Button
+                                Button(
+                                    onClick = {
+                                        pushUndo("Toggle Segment #${activeSeg.id}")
+                                        onToggleSegmentCutStatus?.invoke(activeSeg.id)
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    },
+                                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isCut) GreenSuccess.copy(alpha = 0.2f) else SilenceRed.copy(alpha = 0.2f),
+                                        contentColor = if (isCut) GreenSuccess else SilenceRed
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isCut) GreenSuccess.copy(alpha = 0.5f) else SilenceRed.copy(alpha = 0.5f))
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(if (isCut) Icons.Default.CheckCircle else Icons.Default.Cancel, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (isCut) "Restore to Voice (Keep in final cut)" else "Mark as Silence (Remove from final cut)",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // Razor Tool: Split at current playhead
+                                val canSplitHere = currentPositionMs > activeSeg.startMs + 50L && currentPositionMs < activeSeg.endMs - 50L
+                                Button(
+                                    onClick = {
+                                        pushUndo("Split at ${formatTime(currentPositionMs)}")
+                                        val ok = onSplitAtPosition?.invoke(currentPositionMs) ?: false
+                                        if (ok) {
+                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            android.widget.Toast.makeText(context, "✂ Sliced at ${formatTime(currentPositionMs)}", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    enabled = canSplitHere,
+                                    modifier = Modifier.fillMaxWidth().height(40.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = PrimaryCyan.copy(alpha = 0.2f),
+                                        contentColor = PrimaryCyan,
+                                        disabledContainerColor = CardDark,
+                                        disabledContentColor = TextMuted
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (canSplitHere) PrimaryCyan.copy(alpha = 0.4f) else CardBorderSubtle)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.ContentCut, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (canSplitHere) "✂ Split at Playhead (${formatTime(currentPositionMs)})"
+                                                   else "Move playhead inside segment to split",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Section 2: Boundary Nudge Controls (±100ms / ±500ms)
+                                Text("Fine Precision Boundary Nudge", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text("Adjust boundaries by ±100ms or ±500ms so dialogue is never clipped", fontSize = 10.sp, color = TextSecondary)
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Start Boundary Nudges
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Start Boundary", fontSize = 11.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        listOf(-500L, -100L, 100L, 500L).forEach { delta ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(CardDarkElevated)
+                                                    .border(1.dp, CardBorderSubtle, RoundedCornerShape(6.dp))
+                                                    .clickable {
+                                                        pushUndo("Nudge Start ${if (delta > 0) "+$delta" else "$delta"}ms")
+                                                        onNudgeSegment?.invoke(activeSeg.id, delta, 0L)
+                                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                    }
+                                                    .padding(horizontal = 7.dp, vertical = 4.dp)
+                                            ) {
+                                                Text(
+                                                    text = if (delta > 0) "+${delta}ms" else "${delta}ms",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = PrimaryCyan
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                // End Boundary Nudges
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("End Boundary", fontSize = 11.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        listOf(-500L, -100L, 100L, 500L).forEach { delta ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(CardDarkElevated)
+                                                    .border(1.dp, CardBorderSubtle, RoundedCornerShape(6.dp))
+                                                    .clickable {
+                                                        pushUndo("Nudge End ${if (delta > 0) "+$delta" else "$delta"}ms")
+                                                        onNudgeSegment?.invoke(activeSeg.id, 0L, delta)
+                                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                    }
+                                                    .padding(horizontal = 7.dp, vertical = 4.dp)
+                                            ) {
+                                                Text(
+                                                    text = if (delta > 0) "+${delta}ms" else "${delta}ms",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = PrimaryCyan
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                Text("No segment selected. Tap on any segment in the waveform or move playhead.", fontSize = 11.sp, color = TextMuted)
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(CardBorderSubtle))
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Section 3: In / Out Work Area Trimming
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Crop, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(15.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Work Area Range (In / Out)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                }
+                                if (markInMs != null || markOutMs != null) {
+                                    Text(
+                                        text = "Clear",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SilenceRed,
+                                        modifier = Modifier.clickable {
+                                            markInMs = null
+                                            markOutMs = null
+                                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        }
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        markInMs = currentPositionMs
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    },
+                                    modifier = Modifier.weight(1f).height(38.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = CardDarkElevated),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
+                                ) {
+                                    Text(
+                                        text = if (markInMs != null) "In: ${formatTime(markInMs!!)}" else "[ Mark In",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (markInMs != null) PrimaryCyan else TextSecondary
+                                    )
+                                }
+
+                                Button(
+                                    onClick = {
+                                        markOutMs = currentPositionMs
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    },
+                                    modifier = Modifier.weight(1f).height(38.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = CardDarkElevated),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
+                                ) {
+                                    Text(
+                                        text = if (markOutMs != null) "Out: ${formatTime(markOutMs!!)}" else "] Mark Out",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (markOutMs != null) PrimaryCyan else TextSecondary
+                                    )
+                                }
+                            }
+
+                            if (markInMs != null || markOutMs != null) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = {
+                                        val inPos = markInMs ?: 0L
+                                        val outPos = markOutMs ?: originalDurationMs
+                                        pushUndo("Trim Outside Work Area")
+                                        val updated = segments.map { seg ->
+                                            if (seg.endMs <= inPos || seg.startMs >= outPos) {
+                                                seg.copy(isSilence = true, isExcluded = false)
+                                            } else seg
+                                        }
+                                        onManualUpdateSegments?.invoke(updated)
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        android.widget.Toast.makeText(context, "Trimmed media outside In/Out", android.widget.Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.fillMaxWidth().height(38.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan.copy(alpha = 0.15f)),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
+                                ) {
+                                    Icon(Icons.Default.ContentCut, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Cut Outside In/Out Work Area", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryCyan)
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(CardBorderSubtle))
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Section 4: Mini Segment Strip (Quick Jump to Any Segment)
+                            Text("All Segments (${segments.size} cuts & blocks)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            val segmentsSlice = remember(segments, currentPositionMs) {
+                                val currentIdx = segments.indexOfFirst { currentPositionMs in it.startMs until it.endMs }.coerceAtLeast(0)
+                                val start = (currentIdx - 5).coerceAtLeast(0)
+                                val end = (currentIdx + 15).coerceAtMost(segments.size)
+                                segments.subList(start, end)
+                            }
+
+                            segmentsSlice.forEach { seg ->
+                                val isSelected = seg.id == activeSeg?.id
+                                val isCut = seg.isSilence && !seg.isExcluded
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (isSelected) PrimaryCyan.copy(alpha = 0.15f) else CardDark)
+                                        .border(1.dp, if (isSelected) PrimaryCyan else CardBorderSubtle, RoundedCornerShape(6.dp))
+                                        .clickable {
+                                            selectedSegmentId = seg.id
+                                            currentPositionMs = seg.startMs
+                                            exoPlayer.seekTo(seg.startMs)
+                                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            "#${seg.id}",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) PrimaryCyan else TextSecondary,
+                                            modifier = Modifier.width(28.dp)
+                                        )
+                                        Text(
+                                            "${formatTime(seg.startMs)} - ${formatTime(seg.endMs)}",
+                                            fontSize = 11.sp,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            color = TextPrimary
+                                        )
+                                    }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(if (isCut) SilenceRed.copy(alpha = 0.2f) else GreenSuccess.copy(alpha = 0.2f))
+                                                .clickable {
+                                                    pushUndo("Toggle #${seg.id}")
+                                                    onToggleSegmentCutStatus?.invoke(seg.id)
+                                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                }
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = if (isCut) "CUT" else "KEEP",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isCut) SilenceRed else GreenSuccess
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -1477,7 +2177,8 @@ fun EditorScreen(
         ExportBottomSheet(
             initialConfig = exportConfig.copy(
                 studioAudioLeveling = cutSettings.studioAudioLeveling,
-                roomToneSmoothing = cutSettings.roomToneSmoothing
+                roomToneSmoothing = cutSettings.roomToneSmoothing,
+                targetAspectRatio = previewAspectRatio
             ),
             isVideo = media.isVideo,
             originalDurationMs = originalDurationMs,

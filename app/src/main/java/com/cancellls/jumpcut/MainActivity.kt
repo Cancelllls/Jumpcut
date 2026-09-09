@@ -275,6 +275,10 @@ class MainActivity : ComponentActivity() {
                                     onToggleSegment = { segId -> viewModel.toggleSegment(segId) },
                                     onToggleAllSilences = { cutAll -> viewModel.toggleAllSilences(cutAll) },
                                     onResetAllSegments = { viewModel.resetAllSegments() },
+                                    onSplitAtPosition = { pos -> viewModel.splitAtPosition(pos) },
+                                    onToggleSegmentCutStatus = { segId -> viewModel.toggleSegmentCutStatus(segId) },
+                                    onNudgeSegment = { segId, dStart, dEnd -> viewModel.nudgeSegmentBoundary(segId, dStart, dEnd) },
+                                    onManualUpdateSegments = { newSegs -> viewModel.setManualSegments(newSegs) },
                                     onExportConfirm = { config ->
                                         viewModel.updateExportConfig(config)
                                         viewModel.exportSplicedMedia(config)

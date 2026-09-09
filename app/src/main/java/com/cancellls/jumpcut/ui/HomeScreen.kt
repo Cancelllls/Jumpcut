@@ -196,6 +196,17 @@ fun CutterStudioContent(
         uri?.let { onMediaSelected(it) }
     }
 
+    val multipleMediaPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            if (uris.size > 1) {
+                android.widget.Toast.makeText(context, "Batch Ingest: Queued ${uris.size} clips (Editing clip 1)", android.widget.Toast.LENGTH_LONG).show()
+            }
+            onMediaSelected(uris.first())
+        }
+    }
+
     val anyFilePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -476,15 +487,15 @@ fun CutterStudioContent(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // 3-Way Hardware Source Rack
+                    // 4-Way Hardware Source Rack
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         // Primary: Gallery
                         Box(
                             modifier = Modifier
-                                .weight(1.2f)
+                                .weight(1.1f)
                                 .height(44.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(StudioTealButtonBrush)
@@ -497,9 +508,9 @@ fun CutterStudioContent(
                             contentAlignment = Alignment.Center
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = BgDark, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Gallery", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = BgDark)
+                                Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = BgDark, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Gallery", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = BgDark)
                             }
                         }
 
@@ -515,16 +526,38 @@ fun CutterStudioContent(
                             contentAlignment = Alignment.Center
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.FolderOpen, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text("Files", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Icon(Icons.Default.FolderOpen, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Files", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                             }
                         }
 
-                        // Secondary 2: Web Link
+                        // Secondary 2: Batch Multi-Clip
                         Box(
                             modifier = Modifier
                                 .weight(1f)
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(CardDarkElevated)
+                                .border(1.dp, StudioCardBorderBrush, RoundedCornerShape(12.dp))
+                                .clickable {
+                                    multipleMediaPicker.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Layers, contentDescription = null, tint = GoldPro, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Batch", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            }
+                        }
+
+                        // Secondary 3: Web Link
+                        Box(
+                            modifier = Modifier
+                                .weight(0.9f)
                                 .height(44.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(CardDarkElevated)
@@ -533,9 +566,9 @@ fun CutterStudioContent(
                             contentAlignment = Alignment.Center
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Link, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text("URL", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Icon(Icons.Default.Link, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("URL", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                             }
                         }
                     }

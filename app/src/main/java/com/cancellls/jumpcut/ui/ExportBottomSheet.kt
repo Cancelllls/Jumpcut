@@ -1,5 +1,8 @@
 package com.cancellls.jumpcut.ui
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,7 +23,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cancellls.jumpcut.model.CaptionStyle
 import com.cancellls.jumpcut.model.ExportConfig
+import com.cancellls.jumpcut.model.TargetAspectRatio
 import com.cancellls.jumpcut.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,6 +55,19 @@ fun ExportBottomSheet(
     var studioAudioLeveling by remember { mutableStateOf(initialConfig.studioAudioLeveling) }
     var roomToneSmoothing by remember { mutableStateOf(initialConfig.roomToneSmoothing) }
     var silenceTimeWarp by remember { mutableStateOf(initialConfig.silenceTimeWarp) }
+    var targetAspectRatio by remember { mutableStateOf(initialConfig.targetAspectRatio) }
+    var burnInCaptions by remember { mutableStateOf(initialConfig.burnInCaptions) }
+    var captionStyle by remember { mutableStateOf(initialConfig.captionStyle) }
+    var instantRemux by remember { mutableStateOf(initialConfig.instantRemux) }
+    var backgroundMusicUri by remember { mutableStateOf<Uri?>(initialConfig.backgroundMusicUri) }
+    var backgroundMusicVolume by remember { mutableFloatStateOf(initialConfig.backgroundMusicVolume) }
+    var musicAutoDuck by remember { mutableStateOf(initialConfig.musicAutoDuck) }
+
+    val musicPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { backgroundMusicUri = it }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -596,6 +614,327 @@ fun ExportBottomSheet(
                 )
             }
 
+            // Multi-Format Social Aspect Ratio Converter
+            if (isVideo && !extractAudioOnly) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(CardDark)
+                        .padding(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.AspectRatio, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Social Aspect Ratio", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        }
+                        Text(targetAspectRatio.tag, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryCyan)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        TargetAspectRatio.entries.forEach { ratio ->
+                            val isSel = targetAspectRatio == ratio
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSel) PrimaryCyan.copy(alpha = 0.2f) else CardDarkElevated)
+                                    .border(1.dp, if (isSel) PrimaryCyan else CardBorderSubtle, RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                                        targetAspectRatio = ratio
+                                    }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = ratio.tag,
+                                    fontSize = 10.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSel) PrimaryCyan else TextSecondary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Instant Lossless Remux Mode
+            if (isVideo && !extractAudioOnly) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(CardDark)
+                        .clickable {
+                            haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                            instantRemux = !instantRemux
+                        }
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Bolt, contentDescription = null, tint = GoldPro, modifier = Modifier.size(22.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Instant Lossless Remux", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(GoldPro.copy(alpha = 0.2f))
+                                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                                ) {
+                                    Text("5-SEC EXPORT", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = GoldPro)
+                                }
+                            }
+                            Text("Direct bitstream transmux • Zero quality degradation", fontSize = 11.sp, color = TextSecondary)
+                        }
+                    }
+                    Switch(
+                        checked = instantRemux,
+                        onCheckedChange = {
+                            haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                            instantRemux = it
+                            if (it && burnInCaptions) {
+                                burnInCaptions = false
+                            }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = TextPrimary,
+                            checkedTrackColor = GoldPro,
+                            uncheckedTrackColor = CardBorder
+                        )
+                    )
+                }
+            }
+
+            // TikTok / Reels Open Captions (Burn-In Subtitles)
+            if (isVideo && !extractAudioOnly) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(CardDark)
+                        .padding(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Subtitles, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(22.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Burn-In Open Captions", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(PrimaryCyan.copy(alpha = 0.2f))
+                                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                                    ) {
+                                        Text("TIKTOK STYLE", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = PrimaryCyan)
+                                    }
+                                }
+                                Text(
+                                    if (instantRemux) "Requires re-encode (disables instant remux)"
+                                    else "Burn speech cues directly into exported MP4 frames",
+                                    fontSize = 11.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = burnInCaptions,
+                            onCheckedChange = {
+                                haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                                burnInCaptions = it
+                                if (it && instantRemux) {
+                                    instantRemux = false
+                                }
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = TextPrimary,
+                                checkedTrackColor = PrimaryCyan,
+                                uncheckedTrackColor = CardBorder
+                            )
+                        )
+                    }
+
+                    if (burnInCaptions) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text("Caption Graphic Style", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(
+                                CaptionStyle.NEON_CYAN to "Neon Cyan",
+                                CaptionStyle.YELLOW_PUNCH to "Yellow Punch",
+                                CaptionStyle.CLASSIC_WHITE to "Classic White"
+                            ).forEach { (style, label) ->
+                                val isSel = captionStyle == style
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSel) PrimaryCyan.copy(alpha = 0.2f) else CardDarkElevated)
+                                        .border(1.dp, if (isSel) PrimaryCyan else CardBorderSubtle, RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                                            captionStyle = style
+                                        }
+                                        .padding(vertical = 7.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 10.sp,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSel) PrimaryCyan else TextSecondary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Background Music Bed with Auto-Ducking
+            Spacer(modifier = Modifier.height(12.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CardDark)
+                    .padding(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.MusicNote, contentDescription = null, tint = GoldPro, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Background Music Bed", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    }
+                    if (backgroundMusicUri != null) {
+                        Text(
+                            text = "Remove",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SilenceRed,
+                            modifier = Modifier.clickable {
+                                backgroundMusicUri = null
+                                haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (backgroundMusicUri == null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(CardDarkElevated)
+                            .border(1.dp, CardBorderSubtle, RoundedCornerShape(8.dp))
+                            .clickable {
+                                musicPicker.launch("audio/*")
+                            }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Select Audio Bed (MP3 / WAV)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryCyan)
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(CardDarkElevated)
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = backgroundMusicUri?.lastPathSegment ?: "Audio Track Loaded",
+                            fontSize = 11.sp,
+                            color = TextPrimary,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Auto-Ducking Switch
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Auto-Ducking (-14 dB)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Text("Automatically lowers music when voice is detected", fontSize = 10.sp, color = TextSecondary)
+                        }
+                        Switch(
+                            checked = musicAutoDuck,
+                            onCheckedChange = { musicAutoDuck = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = TextPrimary,
+                                checkedTrackColor = GoldPro,
+                                uncheckedTrackColor = CardBorder
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Volume slider
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Music Volume", fontSize = 11.sp, color = TextSecondary)
+                        Text("${(backgroundMusicVolume * 100).toInt()}%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GoldPro)
+                    }
+                    Slider(
+                        value = backgroundMusicVolume,
+                        onValueChange = { backgroundMusicVolume = it },
+                        valueRange = 0.05f..0.60f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = GoldPro,
+                            activeTrackColor = GoldPro,
+                            inactiveTrackColor = CardBorder
+                        )
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // Start Export Button
@@ -645,7 +984,14 @@ fun ExportBottomSheet(
                                 roomToneSmoothing = roomToneSmoothing,
                                 audioFormat = audioFormat,
                                 videoResolution = videoResolution,
-                                silenceTimeWarp = silenceTimeWarp
+                                silenceTimeWarp = silenceTimeWarp,
+                                targetAspectRatio = targetAspectRatio,
+                                burnInCaptions = burnInCaptions,
+                                captionStyle = captionStyle,
+                                instantRemux = instantRemux,
+                                backgroundMusicUri = backgroundMusicUri,
+                                backgroundMusicVolume = backgroundMusicVolume,
+                                musicAutoDuck = musicAutoDuck
                             )
                         )
                     },

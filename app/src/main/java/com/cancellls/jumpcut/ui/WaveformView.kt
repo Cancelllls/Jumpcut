@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -21,6 +22,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -39,7 +41,9 @@ fun WaveformView(
     totalDurationMs: Long,
     currentPositionMs: Long,
     onSeek: (Long) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    selectedSegmentId: Int? = null,
+    onSegmentClick: ((CutSegment) -> Unit)? = null
 ) {
     val haptics = LocalHapticFeedback.current
     var zoomScale by remember { mutableFloatStateOf(1f) }
@@ -163,18 +167,30 @@ fun WaveformView(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, _, zoom, _ ->
+                            if (zoom != 1f) {
+                                zoomScale = (zoomScale * zoom).coerceIn(1f, 8f)
+                            }
+                        }
+                    }
                     .horizontalScroll(scrollState, enabled = zoomScale > 1f)
             ) {
                 Canvas(
                     modifier = Modifier
                         .width(canvasWidthDp)
                         .fillMaxHeight()
-                        .pointerInput(totalDurationMs, zoomScale) {
+                        .pointerInput(totalDurationMs, zoomScale, segments) {
                             detectTapGestures { offset ->
                                 if (totalDurationMs > 0 && size.width > 0) {
                                     val fraction = (offset.x / size.width).coerceIn(0f, 1f)
+                                    val seekMs = (fraction * totalDurationMs).toLong()
                                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onSeek((fraction * totalDurationMs).toLong())
+                                    onSeek(seekMs)
+                                    val clickedSeg = segments.firstOrNull { seekMs in it.startMs..it.endMs }
+                                    if (clickedSeg != null) {
+                                        onSegmentClick?.invoke(clickedSeg)
+                                    }
                                 }
                             }
                         }
@@ -240,7 +256,7 @@ fun WaveformView(
                             drawContext.canvas.nativeCanvas.drawText(
                                 timeStr,
                                 tickX,
-                                rulerHeightPx - 10.dp.toPx(),
+                                rulerHeightPx - 9.dp.toPx(),
                                 textPaint
                             )
                         }
@@ -249,10 +265,11 @@ fun WaveformView(
 
                     // 2. Draw Background Cut Region Stripes in Waveform area
                     segments.forEach { seg ->
+                        val startX = (seg.startMs.toFloat() / totalDurationMs) * canvasWidth
+                        val endX = (seg.endMs.toFloat() / totalDurationMs) * canvasWidth
+                        val width = (endX - startX).coerceAtLeast(1f)
+
                         if (!seg.shouldKeep) {
-                            val startX = (seg.startMs.toFloat() / totalDurationMs) * canvasWidth
-                            val endX = (seg.endMs.toFloat() / totalDurationMs) * canvasWidth
-                            val width = (endX - startX).coerceAtLeast(1f)
                             drawRect(
                                 color = SilenceRedTranslucent,
                                 topLeft = Offset(startX, rulerHeightPx),
@@ -260,13 +277,24 @@ fun WaveformView(
                             )
                         } else if (seg.isSilence && seg.isExcluded) {
                             // Kept pause segment highlighted with subtle green tint
-                            val startX = (seg.startMs.toFloat() / totalDurationMs) * canvasWidth
-                            val endX = (seg.endMs.toFloat() / totalDurationMs) * canvasWidth
-                            val width = (endX - startX).coerceAtLeast(1f)
                             drawRect(
                                 color = GreenSuccess.copy(alpha = 0.15f),
                                 topLeft = Offset(startX, rulerHeightPx),
                                 size = Size(width, waveAreaHeight)
+                            )
+                        }
+
+                        if (seg.id == selectedSegmentId) {
+                            drawRect(
+                                color = PrimaryCyan.copy(alpha = 0.30f),
+                                topLeft = Offset(startX, rulerHeightPx),
+                                size = Size(width, waveAreaHeight)
+                            )
+                            drawRect(
+                                color = PrimaryCyan,
+                                topLeft = Offset(startX, rulerHeightPx),
+                                size = Size(width, waveAreaHeight),
+                                style = Stroke(width = 2.dp.toPx())
                             )
                         }
                     }

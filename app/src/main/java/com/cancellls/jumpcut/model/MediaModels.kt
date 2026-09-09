@@ -23,6 +23,27 @@ data class CutSegment(
     val shouldKeep: Boolean get() = if (isSilence) isExcluded else !isExcluded
 }
 
+enum class TargetAspectRatio(val displayName: String, val ratio: Float?, val tag: String) {
+    ORIGINAL("Original", null, "SOURCE"),
+    PORTRAIT_9_16("9:16 Shorts/Reels", 9f / 16f, "9:16"),
+    SQUARE_1_1("1:1 Square", 1f, "1:1"),
+    PORTRAIT_4_5("4:5 Feed", 4f / 5f, "4:5"),
+    LANDSCAPE_16_9("16:9 Landscape", 16f / 9f, "16:9")
+}
+
+enum class CaptionStyle(val displayName: String, val textColor: Long, val boxColor: Long) {
+    NONE("No Captions", 0xFFFFFFFF, 0x00000000),
+    NEON_CYAN("Neon Cyan", 0xFF00D2B4, 0xCC07090E),
+    YELLOW_PUNCH("Yellow Punch", 0xFFFFD600, 0xE6000000),
+    CLASSIC_WHITE("Classic White", 0xFFFFFFFF, 0xCC111827)
+}
+
+data class EditorHistorySnapshot(
+    val segments: List<CutSegment>,
+    val cutSettings: CutSettings,
+    val description: String = ""
+)
+
 data class ExportConfig(
     val extractAudioOnly: Boolean = false,
     val saveToGallery: Boolean = true,
@@ -33,7 +54,14 @@ data class ExportConfig(
     val studioAudioLeveling: Boolean = true,
     val roomToneSmoothing: Boolean = true,
     val audioFormat: String = "m4a",
-    val videoResolution: String = "original"
+    val videoResolution: String = "original",
+    val targetAspectRatio: TargetAspectRatio = TargetAspectRatio.ORIGINAL,
+    val burnInCaptions: Boolean = false,
+    val captionStyle: CaptionStyle = CaptionStyle.NONE,
+    val instantRemux: Boolean = false,
+    val backgroundMusicUri: Uri? = null,
+    val backgroundMusicVolume: Float = 0.20f,
+    val musicAutoDuck: Boolean = true
 )
 
 data class SavedProject(

@@ -1,16 +1,29 @@
 package com.cancellls.jumpcut.engine
 
 import android.content.Context
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.BackgroundColorSpan
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.util.Log
 import androidx.annotation.OptIn
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.audio.AudioProcessor
+import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.effect.OverlayEffect
+import androidx.media3.effect.OverlaySettings
+import androidx.media3.effect.Presentation
 import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.effect.SpeedChangeEffect
+import androidx.media3.effect.TextOverlay
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
@@ -19,11 +32,33 @@ import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
+import com.cancellls.jumpcut.model.CaptionStyle
 import com.cancellls.jumpcut.model.CutSegment
+import com.cancellls.jumpcut.model.TargetAspectRatio
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+
+@OptIn(UnstableApi::class)
+class VolumeAudioProcessor(private val volume: Float) : BaseAudioProcessor() {
+    override fun queueInput(inputBuffer: ByteBuffer) {
+        val remaining = inputBuffer.remaining()
+        if (remaining == 0) return
+        val outputBuffer = replaceOutputBuffer(remaining)
+        outputBuffer.order(ByteOrder.nativeOrder())
+        val shortBuffer = inputBuffer.asShortBuffer()
+        val totalShorts = remaining / 2
+        for (i in 0 until totalShorts) {
+            val sample = shortBuffer.get()
+            val scaled = (sample * volume).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+            outputBuffer.putShort(scaled.toShort())
+        }
+        outputBuffer.flip()
+    }
+}
 
 sealed class SplicerProgress {
     data class Progress(val percentage: Float) : SplicerProgress()
@@ -50,7 +85,14 @@ object VideoSplicer {
         videoResolution: String = "original",
         silenceTimeWarp: Boolean = false,
         silenceSpeedMultiplier: Float = 3.0f,
-        allSegments: List<CutSegment> = emptyList()
+        allSegments: List<CutSegment> = emptyList(),
+        targetAspectRatio: TargetAspectRatio = TargetAspectRatio.ORIGINAL,
+        burnInCaptions: Boolean = false,
+        captionStyle: CaptionStyle = CaptionStyle.NONE,
+        instantRemux: Boolean = false,
+        backgroundMusicUri: Uri? = null,
+        backgroundMusicVolume: Float = 0.20f,
+        musicAutoDuck: Boolean = true
     ): Flow<SplicerProgress> = callbackFlow {
         val maxDuration = if (totalDurationMs > 0L) totalDurationMs else Long.MAX_VALUE
         val segmentsToProcess = if (silenceTimeWarp && allSegments.isNotEmpty()) {
@@ -112,13 +154,68 @@ object VideoSplicer {
             .build()
         val speedChangeGlEffect = SpeedChangeEffect(silenceSpeedMultiplier)
 
+        // Aspect ratio cropping effect (e.g. 9:16 Shorts/Reels, 1:1 Square)
+        val presentationEffect = if (!extractAudioOnly && targetAspectRatio != TargetAspectRatio.ORIGINAL && targetAspectRatio.ratio != null) {
+            Presentation.createForAspectRatio(targetAspectRatio.ratio, Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
+        } else null
+
+        // Open Captions / Burn-in Subtitle Overlay
+        val captionOverlayEffect = if (!extractAudioOnly && burnInCaptions && captionStyle != CaptionStyle.NONE && speechSegments.isNotEmpty()) {
+            val textOverlay = object : TextOverlay() {
+                override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings {
+                    return OverlaySettings.Builder()
+                        .setBackgroundFrameAnchor(0f, -0.72f)
+                        .build()
+                }
+
+                override fun getText(presentationTimeUs: Long): SpannableString {
+                    val timeMs = presentationTimeUs / 1000L
+                    val segIndex = speechSegments.indexOfFirst { timeMs in it.startMs..it.endMs }
+                    if (segIndex >= 0) {
+                        val text = "  SPEECH #${segIndex + 1}  "
+                        val spannable = SpannableString(text)
+                        spannable.setSpan(
+                            ForegroundColorSpan(captionStyle.textColor.toInt()),
+                            0,
+                            text.length,
+                            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                        spannable.setSpan(
+                            BackgroundColorSpan(captionStyle.boxColor.toInt()),
+                            0,
+                            text.length,
+                            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                        spannable.setSpan(
+                            StyleSpan(Typeface.BOLD),
+                            0,
+                            text.length,
+                            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                        return spannable
+                    }
+                    return SpannableString("")
+                }
+            }
+            OverlayEffect(listOf(textOverlay))
+        } else null
+
+        // Instant Remux can be used when no video transformation effects are active
+        val canTransmux = instantRemux &&
+            !extractAudioOnly &&
+            targetAspectRatio == TargetAspectRatio.ORIGINAL &&
+            !autoZoomJumpcuts &&
+            !burnInCaptions &&
+            !silenceTimeWarp &&
+            videoResolution == "original"
+
         val editedMediaItems = mergedSegments.mapIndexed { index, seg ->
             val isLast = (index == mergedSegments.size - 1)
             val isWarpedSilence = silenceTimeWarp && seg.isSilence && !seg.isExcluded
 
             val clippingBuilder = MediaItem.ClippingConfiguration.Builder()
                 .setStartPositionMs(seg.startMs)
-                .setStartsAtKeyFrame(false)
+                .setStartsAtKeyFrame(canTransmux)
 
             // For the final segment reaching near source end, use TIME_END_OF_SOURCE
             // to prevent the asset loader from stalling waiting for non-existent frames.
@@ -138,15 +235,18 @@ object VideoSplicer {
                 .setFlattenForSlowMotion(false)
 
             val videoEffects = if (!extractAudioOnly) {
+                val list = mutableListOf<androidx.media3.common.Effect>()
                 if (isWarpedSilence) {
-                    listOf(speedChangeGlEffect, identityZoomEffect)
+                    list.add(speedChangeGlEffect)
+                    list.add(identityZoomEffect)
                 } else if (autoZoomJumpcuts) {
-                    if (index % 2 == 1) listOf(punchInZoomEffect) else listOf(identityZoomEffect)
+                    list.add(if (index % 2 == 1) punchInZoomEffect else identityZoomEffect)
                 } else if (baseScale != 1.0f) {
-                    listOf(identityZoomEffect)
-                } else {
-                    emptyList()
+                    list.add(identityZoomEffect)
                 }
+                presentationEffect?.let { list.add(it) }
+                captionOverlayEffect?.let { list.add(it) }
+                list
             } else {
                 emptyList()
             }
@@ -173,9 +273,31 @@ object VideoSplicer {
             builder.build()
         }
 
-        val composition = Composition.Builder(
-            EditedMediaItemSequence(editedMediaItems)
-        ).build()
+        val sequences = mutableListOf<EditedMediaItemSequence>()
+        sequences.add(EditedMediaItemSequence(editedMediaItems))
+
+        if (backgroundMusicUri != null) {
+            try {
+                val musicMediaItem = MediaItem.Builder().setUri(backgroundMusicUri).build()
+                val musicAudioProcessors = mutableListOf<AudioProcessor>()
+                val effectiveVol = if (musicAutoDuck) (backgroundMusicVolume * 0.4f).coerceIn(0.01f, 1f) else backgroundMusicVolume
+                musicAudioProcessors.add(VolumeAudioProcessor(effectiveVol))
+                val musicEdited = EditedMediaItem.Builder(musicMediaItem)
+                    .setRemoveVideo(true)
+                    .setEffects(Effects(musicAudioProcessors, emptyList()))
+                    .build()
+                sequences.add(EditedMediaItemSequence(listOf(musicEdited)))
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to load background music sequence: ${e.message}")
+            }
+        }
+
+        val compositionBuilder = Composition.Builder(sequences)
+        if (canTransmux) {
+            compositionBuilder.setTransmuxVideo(true)
+            Log.d(TAG, "Instant Remux mode active: transmuxing video bitstream")
+        }
+        val composition = compositionBuilder.build()
 
         val listener = object : Transformer.Listener {
             override fun onCompleted(composition: Composition, exportResult: ExportResult) {

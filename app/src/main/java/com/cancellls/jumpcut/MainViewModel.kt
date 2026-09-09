@@ -357,6 +357,66 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun splitAtPosition(positionMs: Long): Boolean {
+        val ready = _processingState.value as? ProcessingState.Ready ?: return false
+        val index = ready.segments.indexOfFirst { positionMs in (it.startMs + 50L) until (it.endMs - 50L) }
+        if (index < 0) return false
+        val target = ready.segments[index]
+        val maxId = (ready.segments.maxOfOrNull { it.id } ?: 0) + 1
+        val part1 = target.copy(endMs = positionMs)
+        val part2 = target.copy(id = maxId, startMs = positionMs)
+        val updated = ready.segments.toMutableList()
+        updated.removeAt(index)
+        updated.add(index, part1)
+        updated.add(index + 1, part2)
+        val newCutDuration = updated.filter { it.shouldKeep }.sumOf { it.durationMs }
+        val updatedReady = ready.copy(segments = updated, cutDurationMs = newCutDuration)
+        lastReadyState = updatedReady
+        _processingState.value = updatedReady
+        return true
+    }
+
+    fun toggleSegmentCutStatus(segmentId: Int) {
+        val ready = _processingState.value as? ProcessingState.Ready ?: return
+        val updated = ready.segments.map { seg ->
+            if (seg.id == segmentId) {
+                if (seg.isSilence) {
+                    seg.copy(isExcluded = !seg.isExcluded)
+                } else {
+                    // Turn voice segment into a cut or back
+                    seg.copy(isExcluded = !seg.isExcluded)
+                }
+            } else seg
+        }
+        val newCutDuration = updated.filter { it.shouldKeep }.sumOf { it.durationMs }
+        val updatedReady = ready.copy(segments = updated, cutDurationMs = newCutDuration)
+        lastReadyState = updatedReady
+        _processingState.value = updatedReady
+    }
+
+    fun nudgeSegmentBoundary(segmentId: Int, startDeltaMs: Long, endDeltaMs: Long) {
+        val ready = _processingState.value as? ProcessingState.Ready ?: return
+        val updated = ready.segments.map { seg ->
+            if (seg.id == segmentId) {
+                val newStart = (seg.startMs + startDeltaMs).coerceIn(0L, seg.endMs - 40L)
+                val newEnd = (seg.endMs + endDeltaMs).coerceIn(newStart + 40L, ready.originalDurationMs)
+                seg.copy(startMs = newStart, endMs = newEnd)
+            } else seg
+        }
+        val newCutDuration = updated.filter { it.shouldKeep }.sumOf { it.durationMs }
+        val updatedReady = ready.copy(segments = updated, cutDurationMs = newCutDuration)
+        lastReadyState = updatedReady
+        _processingState.value = updatedReady
+    }
+
+    fun setManualSegments(newSegments: List<CutSegment>) {
+        val ready = _processingState.value as? ProcessingState.Ready ?: return
+        val newCutDuration = newSegments.filter { it.shouldKeep }.sumOf { it.durationMs }
+        val updatedReady = ready.copy(segments = newSegments, cutDurationMs = newCutDuration)
+        lastReadyState = updatedReady
+        _processingState.value = updatedReady
+    }
+
     fun reopenProjectInEditor(project: SavedProject) {
         val file = File(project.filePath)
         if (!file.exists()) {
@@ -442,7 +502,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     videoResolution = config.videoResolution,
                     silenceTimeWarp = config.silenceTimeWarp,
                     silenceSpeedMultiplier = 3.0f,
-                    allSegments = state.segments
+                    allSegments = state.segments,
+                    targetAspectRatio = config.targetAspectRatio,
+                    burnInCaptions = config.burnInCaptions,
+                    captionStyle = config.captionStyle,
+                    instantRemux = config.instantRemux,
+                    backgroundMusicUri = config.backgroundMusicUri,
+                    backgroundMusicVolume = config.backgroundMusicVolume,
+                    musicAutoDuck = config.musicAutoDuck
                 ).collect { progress ->
                     when (progress) {
                         is SplicerProgress.Progress -> {
